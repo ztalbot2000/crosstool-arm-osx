@@ -1,9 +1,6 @@
 #!/bin/bash
 #
-#  Author: Rick Boykin
-#
-#  Changes
-#    3/11/18 - Updated to use crosstool-ng v1.23 by John Talbot (github.com/ztalbot2000)
+#  John Talbot
 #
 #  Installs a gcc cross compiler for compiling code for raspberry pi on OSX.
 #  This script is based on several scripts and forum posts I've found around
