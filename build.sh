@@ -67,8 +67,9 @@ BrewHome="/Volumes/${ImageName}/brew"
 # help2man is reauired when configuring crosstool-ng
 # wget  is reauired when configuring crosstool-ng
 # wget  requires all kinds of stuff that is auto downloaded by brew. Sorry
+# automake is required to fix a compile issue with gettext
 #
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man"
+BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake"
 
 # This is required so brew can be installed elsewhere
 export BREW_PREFIX=$BrewHome
