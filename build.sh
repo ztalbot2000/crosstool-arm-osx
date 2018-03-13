@@ -1,6 +1,10 @@
 #!/bin/bash
 #
-#  John Talbot
+#  Author: John Talbot
+#
+#  Changes
+#    3/11/18 - Updated to use crosstool-ng v1.23
+#    3/12/18 - You can now choose crosstool-ng (Latest) from git 
 #
 #  Installs a gcc cross compiler for compiling code for raspberry pi on OSX.
 #  This script is based on several scripts and forum posts I've found around
@@ -34,6 +38,11 @@
 #
 set -e -u
 
+# If latest is 'y', then git will be used to download crosstool-ng LATEST
+# I believe there is a problem with 1.23.0 so for now, this is the default.
+# Ticket #931 has been submitted to address this. It deals with CT_Mirror being undefined
+downloadCrosstoolLatest=y
+
 #
 # Config. Update below here to suite your specific needs.
 #
@@ -44,14 +53,14 @@ set -e -u
 ImageName=CrossToolNG
 
 # This will be the name of the toolchain created by crosstools-ng
-# It is placed in /Volumes/CrossToolNG
-ToolChainName=arm-unknown-linux-gnueabi
+# It is placed in $CT_TOP_DIR
+ToolChainName=arm-unknown-linux-gnueabihf
 
 #
 # This is where your §{ToolchainName".config file is if you have one.
-# It would be copied to crosstool-ng/.config prior to ct-ng menuconfig
+# It would be copied to $CT_TOP_DIR/.config prior to ct-ng menuconfig
 #
-InstallBase=`pwd`
+CrossToolNGConfigFilePath=`pwd`
 
 #
 # Anything below here cannot be changed without bad effects
@@ -67,16 +76,26 @@ BrewHome="/Volumes/${ImageName}/brew"
 # help2man is reauired when configuring crosstool-ng
 # wget  is reauired when configuring crosstool-ng
 # wget  requires all kinds of stuff that is auto downloaded by brew. Sorry
-# automake is required to fix a compile issue with gettext
+# automake is required to fix a compile issue with gettect
 #
 BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake"
 
 # This is required so brew can be installed elsewhere
 export BREW_PREFIX=$BrewHome
 
-# This is the crosstools=ng version used with this tool. It does not
-# work with previous version and who knows about future ones. 
-CrossToolVersion=crosstool-ng-1.23.0
+# This is the crosstools-ng version used by curl to fetch relased version
+# of crosstools-ng. I don't know if it works with previous versions and
+#  who knows about future ones.
+CrossToolVersion="crosstool-ng-1.23.0"
+
+# Changing this affects CT_TOP_DIR which also must be reflected in your
+# crosstool-ng .config file
+CrossToolSourceDir="crosstool-ng-src"
+
+# See note just above why this is duplicated
+CT_TOP_DIR="/Volumes/CrossToolNG/crosstool-ng-src"
+CT_TOP_DIR="/Volumes/${ImageName}/${CrossToolSourceDir}" 
+
 ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
 
 # Fun colour stuff
@@ -137,14 +156,14 @@ function cleanBrew()
       printf "${KBLU}Cleaning brew cache ... ${KNRM}"
       ${BrewHome}/bin/brew cleanup --cache
       printf "${KGRN}  -done${KNRM}\n"
-      removePathWithCheck  "$BrewHome"
+      removePathWithCheck  "${BrewHome}"
    fi
 }
 
 function ct-ngMakeClean()
 {
    printf "${KBLU}Cleaning ct-ng...${KNRM}\n"
-   cd /Volumes/${ImageName}/${CrossToolVersion}
+   cd $CT_TOP_DIR
    make clean
 }
 function realClean()
@@ -234,6 +253,7 @@ function buildBrewDepends()
 }
 
 
+
 function downloadCrossTool()
 {
    cd /Volumes/${ImageName}
@@ -242,21 +262,52 @@ function downloadCrossTool()
    if [ -f "$CrossToolArchive" ]; then
       printf "   -Using existing archive $CrossToolArchive${KNRM}\n"
    else
-      CrossToolUrl=http://crosstool-ng.org/download/crosstool-ng/${CrossToolArchive}
+      CrossToolUrl="http://crosstool-ng.org/download/crosstool-ng/${CrossToolArchive}"
       curl -L -o ${CrossToolArchive} $CrossToolUrl
    fi
 
-   if [ -d "$CrossToolVersion" ]; then
-      printf "   ${KRED}WARNING${KNRM} - $CrossToolArchive exists and will be used.\n"
+   if [ -d $CT_TOP_DIR ]; then
+      printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
       printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
    else
       tar -xvf $CrossToolArchive
+
+      # Sadly we move the real archive name to CT_TOP_DIR
+      # so that if you use latest or a common crosstool-ng .config file
+      # CT_TOP_DIR matches here and there.
+      mv $CrossToolVersion $CrossToolSourceDir
    fi
 }
 
+
+function downloadCrossTool_LATEST()
+{  
+   cd /Volumes/${ImageName}
+
+   printf "${KBLU}Downloading crosstool-ng... to ${PWD}${KNRM}\n"
+   if [ -d $CT_TOP_DIR ]; then 
+      printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
+      printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
+      return
+   fi
+
+   CrossToolUrl="https://github.com/crosstool-ng/crosstool-ng.git"
+   git clone ${CrossToolUrl}  ${CT_TOP_DIR}
+
+   # We need to creat the configure tool
+   printf "${KBLU}Running  crosstool bootstrap... to ${PWD}${KNRM}\n"
+   cd ${CT_TOP_DIR}
+
+   # crosstool-ng-1.23.0 still has CT_Mirror
+   # git checkout -b $CrossToolVersion
+
+   ./bootstrap
+}
+
+
 function patchCrosstool()
 {
-    cd /Volumes/${ImageName}/${CrossToolVersion}
+    cd ${CT_TOP_DIR}
     printf "Patching crosstool-ng...${KNRM}\n"
     printf "   -No Patches requires.\n"
     
@@ -270,7 +321,7 @@ function buildCrosstool()
 {
    printf "${KBLU}Configuring crosstool-ng...${KNRM}\n"
 
-   cd /Volumes/${ImageName}/${CrossToolVersion}
+   cd ${CT_TOP_DIR}
 
    if [ -x ct-ng ]; then
       printf "    - Found existing ct-ng. Using it instead${KNRM}\n"
@@ -303,9 +354,11 @@ function buildCrosstool()
 function createToolchain()
 {
    printf "${KBLU}Creating toolchain ${ToolChainName}...${KNRM}\n"
-   cd /Volumes/${ImageName}/${CrossToolVersion}
 
-   if [ ! -d "$ToolChainName" ]; then
+
+   cd ${CT_TOP_DIR}
+
+   if [ ! -d "${ToolChainName}" ]; then
       mkdir $ToolChainName
    fi
 
@@ -313,18 +366,18 @@ function createToolchain()
    ulimit -n 1024
 
 
-   printf "Checking for an existing toolchain config file ${ToolChainName}.config ...${KNRM}\n"
-   if [ -f ${InstallBase}/${ToolChainName}.config ]; then
-      printf "   - Using $InstallBase/${ToolChainName}.config${KNRM}\n"
-      cp ${InstallBase}/${ToolChainName}.config  \
-           /Volumes/${ImageName}/${CrossToolVersion}/.config
+   printf "${KBLU}Checking for an existing toolchain config file:${KNRM} ${ToolChainName}.config ...${KNRM}\n"
+   if [ -f ${CrossToolNGConfigFilePath}/${ToolChainName}.config ]; then
+      printf "   - Using $CrossToolNGConfigFilePath/${ToolChainName}.config${KNRM}\n"
+      cp ${CrossToolNGConfigFilePath}/${ToolChainName}.config  \
+           ${CT_TOP_DIR}/.config
    else
       printf "   - None found${KNRM}\n"
    fi
 
 cat <<'CONFIG_EOF'
 
-NOTESi on what to set in config file, taken from
+NOTES: on what to set in config file, taken from
 https://gist.github.com/h0tw1r3/19e48ae3021122c2a2ebe691d920a9ca
 
 - Paths and misc options
@@ -377,7 +430,7 @@ CONFIG_EOF
    printf "${KBLU}Execute:${KNRM}bash build.sh continueBuild${KNRM}\n"
    printf "${KBLU}or${KNRM}\n"
    printf "PATH=${BrewHome}/bin:\$PATH${KNRM}\n"
-   printf "cd /Volumes/${ImageName}/${CrossToolVersion}${KNRM}\n"
+   printf "cd ${CT_TOP_DIR}${KNRM}\n"
    printf "./ct-ng build${KNRM}\n"
    
 
@@ -385,21 +438,63 @@ CONFIG_EOF
 
 function buildToolchain()
 {
-   cd /Volumes/${ImageName}/${CrossToolVersion}
-
    printf "${KBLU}Building toolchain...${KNRM}\n"
+
+   cd /Volumes/${ImageName}
+
+   # Allow the source that crosstools-ng downloads to be saved
+   printf "${KBLU}Checking for:${KNRM} ${PWD}/src ...${KNRM}"
+   if [ ! -d "src" ]; then
+      mkdir "src"
+      printf "${KGRN}   -created${KNRM}\n"
+   else
+      printf "${KGRN}   -Done${KNRM}\n"
+   fi
+
+   cd ${CT_TOP_DIR}
+
+   printf "${KBLU}Checking for:${KNRM} ${PWD}/.config ...${KNRM}"
    if [ ! -f '.config' ]; then
       printf "${KRED}ERROR: You have still not created a: ${KNRM}"
-      printf "/Volumes/${ImageName}/${CrossToolVersion}/.config file.${KNRM}\n"
-      printf "Change directory to /Volumes/${ImageName}/${CrossToolVersion}${KNRM}\n"
+      printf "${PWD}/.config file.${KNRM}\n"
+      printf "Change directory to ${CT_TOP_DIR}${KNRM}\n"
       printf "And run: ./ct-ng menuconfig${KNRM}\n"
       printf "Before continuing with the build${KNRM}\n"
 
       exit -1
+   else
+      printf "${KGRN}   -Done${KNRM}\n"
    fi
-   PATH=${BrewHome}/bin:$PATH ./ct-ng build
+
+
+   PATH=${BrewHome}/bin:$PATH
+   ./ct-ng build
+
    printf "And if all went well, you are done! Go forth and compile.${KNRM}\n"
 }
+
+function main()
+{
+   printf "${KBLU}Here we go ....${KNRM}\n"
+
+   # Create the case sensitive volume first.  This is where we will
+   # put Brew too.
+   createCaseSensitiveVolume
+   buildBrewDepends
+
+   # The 1.23  archive is busted and does nnot contain CT_Mirror, until
+   # it is fixed, use git Latest
+   if [ ${downloadCrosstoolLatest} == 'y' ]; then
+      downloadCrossTool_LATEST
+   else
+      downloadCrossTool
+   fi
+
+   patchCrosstool
+   buildCrosstool
+   createToolchain
+}
+
 
 
 if [ $# -gt 0 ] && [[ "$1" == *"help" ]] ; then
@@ -429,30 +524,20 @@ if  [ $# -gt 0 ] && [[ "$1" == *"continueBuild" ]]; then
    exit 0
 fi
 
-
 # Exit immediately for unbound variables.
 set -u
 
 
 # A simple way to check for Unknown options
-if [ "$#" -eq 0 ]; then
-
-   printf "${KBLU}Here we go ....${KNRM}\n"
-
-   # Create the case sensitive volume first.  This is where we will
-   # put Brew too.
-   createCaseSensitiveVolume
-   buildBrewDepends
-   downloadCrossTool
-   patchCrosstool
-   buildCrosstool
-   createToolchain
-else 
+if [ "$#" -ne 0 ]; then
    printf "${KRED}ERROR: Unknown Option:${KNRM}${1}\n"
 
    printf "Try: ${0} help  - For more options${KNRM}\n"
 
    exit -1
+
 fi
+
+main
 
 exit 0

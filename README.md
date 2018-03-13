@@ -2,6 +2,10 @@
 Raspberry Pi Cross Compiler Script for OSX - Updated for crosstools-ng.1.23.0
 # Raspberry Pi Cross Compiler Script for OSX - Updated for crosstools-ng.1.23.0
 
+Note: The default is now crosstool-ng latest that will be downloaded
+      automatially from  GitHub because I believe there is a problems
+      with the 1.23.0 tarball
+
 **build.sh** Installs a gcc cross compiler for compiling code for raspberry pi on OSX.
 This script is based on several scripts and forum posts I've found around 
 the web, the most significant being: 
