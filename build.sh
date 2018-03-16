@@ -122,6 +122,7 @@ cat <<'HELP_EOF'
       realClean      - Unmounts the image and removes it. This destroys EVERYTHING!
       continueBuild  - Build the cross compiler AFTER building the necessary tools
                        and you have defined the crosstool-ng .config file.
+      testBuild      - After the build, run a Hello World test on it.
       help           - This menu.
 
 HELP_EOF
@@ -473,6 +474,23 @@ function buildToolchain()
    printf "And if all went well, you are done! Go forth and compile.${KNRM}\n"
 }
 
+function testBuild
+{
+
+cat <<'HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
+#include <iostream>
+using namespace std;
+
+int main ()
+{
+  cout << "Hello World!";
+  return 0;
+}
+HELLO_WORLD_EOF
+
+PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ /tmp/HelloWorld.cpp -o /tmp/HelloWorld
+}
+
 function main()
 {
    printf "${KBLU}Here we go ....${KNRM}\n"
@@ -521,6 +539,11 @@ fi
 
 if  [ $# -gt 0 ] && [[ "$1" == *"continueBuild" ]]; then
    buildToolchain
+   exit 0
+fi
+
+if  [ $# -gt 0 ] && [[ "$1" == *"testBuild" ]]; then
+   testBuild
    exit 0
 fi
 
