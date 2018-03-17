@@ -29,15 +29,16 @@ The script downloads, compiles and installs all necessary software. The only pre
 
 How the build Script Works
 ---------------------------------
-The script starts by creating a sparse HFSX (case sensitive) filesystem on which to perform the build. The filesystem image is a file that lives in the same directory as the script. 
+The script starts by creating a sparse HFSX (case sensitive) filesystem on which to perform the build. The default volume name is CrossToolNG, but can be changed as an option to build.sh.  The filesystem image created is a file that lives in the same directory as the build.sh script. 
 
-The script will then install some HomeBrew packages on the sparse volume. I currently use MacPorts. At some time during my attempts to setup this cross compiler it interfered with the install, and as such HomeBrew is placed on the same sparse image as the compiler.  In this fashion, all tools are kept together in a completely controlled environment.
+The build.sh script will then install some HomeBrew packages on the sparse volume. I currently use MacPorts. At some time during my attempts to setup this cross compiler it interfered with the install, and as such HomeBrew is placed on the same sparse image as the compiler.  In this fashion, all tools are kept together in a completely controlled environment.
 
 The script then downlaods and installs crosstool-ng. It helps to be a little familiar with the tool. See http://crosstool-ng.org/ 
 
-Once crosstool is installed, it is configured with the arm-unknown-linux-gnueabi.config file by copying that file to the approproite location where crosstool will pick it up. The script then automatically fires up the crosstool config menu (menuconfig) so you can make changes. The menuconfig program is basically a front end for the config file. You can either make changes or just exit. You can also just edit the config file before running the script and remove call to:
+Once crosstool-ng is installed, it is configured with the arm-unknown-linux-gnueabi.config file by copying that file to the approproite location and alter it for $Volume. The script then automatically fires up the crosstool config menu (menuconfig) so you can make changes. The menuconfig program is basically a front end for the config file. You can either make changes or just exit. You can also just edit the config file before running the script and remove call to:
 
-       PATH=/Volumes/${ImageName}:$PATH ../${CrossToolVersion}/ct-ng menuconfig
+       PATH=/Volumes/${Volume}/brew/bin:$PATH
+      /Volumes/$(VOLUME}/crosstool-ng-src/ct-ng menuconfig
 
 Once that is all done, we run the build. If all goes well, you will then have a toolchain for comiling arm code on osx. The default install is in /Volumes/CrossToolNG/install/arm-unknown-linux-gnueabi
 
@@ -53,7 +54,7 @@ To use: open and read the build.sh script to suite your needs. Then run the scri
 
 At any time, you can re-run the script and it will try to continue where you left off, or you can run: bash build.sh realClean to start over.  For further options try:
 
-    bash build.sh -help
+    bash build.sh -h
 
 License
 -----------
@@ -62,10 +63,13 @@ See [LICENSE](LICENSE)
 
 Smoke Test
 ---------------
-As a smoke test you can create a simple HelloWorld program and compile it. That would be something like:
+As a smoke test a simple HelloWorld program can be run using
+   build.sh -t
+
+The test is something like:
 
 ```bash
-cat <<EOF >> HelloWorld.cpp
+cat <<EOF > HelloWorld.cpp
 #include <iostream>
 using namespace std;
 
@@ -76,7 +80,7 @@ int main ()
 }
 EOF
 
-PATH=/Volumes/CrossToolNG/install/arm-unknown-linux-gnueabi/bin:$PATH arm-linux-gnueabihf-g++ HelloWorld.cpp -o HelloWorld
+PATH=/Volumes/${Volume}/install/arm-unknown-linux-gnueabi/bin:$PATH arm-linux-gnueabihf-g++ HelloWorld.cpp -o HelloWorld
 ```
 
 Go forth and compile.
