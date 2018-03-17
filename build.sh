@@ -25,9 +25,9 @@
 #
 #  (2) Download Homebrew to $BrewHome so as not to interfere with macports or fink
 #
-#  (3) Create a case sensitive volume using hdiutil and mount it to /Volumes/$ImageName
+#  (3) Create a case sensitive volume using hdiutil and mount it to /Volumes/$Volume
 #      The size of the volume grows as needed since it is of type SPARSE.
-#      This also means that the filee of the mounted volume is $ImageName.sparseImage
+#      This also means that the filee of the mounted volume is $ImageName.sparseimage
 #
 #  (4) Download, patch and build crosstool-ng
 #
@@ -36,7 +36,10 @@
 #  License:
 #      Please feel free to use this in any way you see fit.
 #
-set -e -u
+set -e
+
+# Exit immediately for unbound variables.
+set -u
 
 # If latest is 'y', then git will be used to download crosstool-ng LATEST
 # I believe there is a problem with 1.23.0 so for now, this is the default.
@@ -47,14 +50,19 @@ downloadCrosstoolLatest=y
 # Config. Update below here to suite your specific needs.
 #
 
-# This will be mounted as /Volumes/CrossToolNG
 # The crosstool image will be $ImageName.sparseimage
 # The volume will grow as required because of the SPARSE type
-ImageName=CrossToolNG
+# You can change this with -i <ImageName> but it will always
+# be <ImageName>.sparseimage
+ImageName="CrossToolNG"
+
+# This will be mounted as /Volumes/CrossToolNG
+# It can be overriden with -V <volume>
+Volume="CrossToolNG"
 
 # This will be the name of the toolchain created by crosstools-ng
 # It is placed in $CT_TOP_DIR
-ToolChainName=arm-unknown-linux-gnueabihf
+ToolChainName="arm-unknown-linux-gnueabihf"
 
 #
 # This is where your §{ToolchainName".config file is if you have one.
@@ -68,7 +76,7 @@ CrossToolNGConfigFilePath=`pwd`
 
 # Where brew will be placed. An existing brew cannot be used because of
 # interferences with macports or fink.
-BrewHome="/Volumes/${ImageName}/brew"
+BrewHome="/Volumes/${Volume}/brew"
 
 # Binutils is for objcopy, objdump, ranlib, readelf
 # sed, gawk libtool bash, grep are direct requirements
@@ -94,7 +102,7 @@ CrossToolSourceDir="crosstool-ng-src"
 
 # See note just above why this is duplicated
 CT_TOP_DIR="/Volumes/CrossToolNG/crosstool-ng-src"
-CT_TOP_DIR="/Volumes/${ImageName}/${CrossToolSourceDir}" 
+CT_TOP_DIR="/Volumes/${Volume}/${CrossToolSourceDir}" 
 
 ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
 
@@ -117,13 +125,17 @@ cat <<'HELP_EOF'
    This shell script is a front end to crosstool-ng to help build a cross compiler on your Mac.  It downloads all the necessary files to build the cross compiler.  It only assumes you have Xcode command line tools installed.
 
    Options:
-      cleanBrew      - Remove all installed Brew tools.
-      ct-ngMakeClean - Run make clean in crosstool-ng path
-      realClean      - Unmounts the image and removes it. This destroys EVERYTHING!
-      continueBuild  - Build the cross compiler AFTER building the necessary tools
+      -i <ImageName> - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
+      -V <Volume>    - Instead of /Volumes/CrosstoolNG/ use /Volumes/<Volume>
+      -c Brew        - Remove all installed Brew tools.
+      -c ct-ng       - Run make clean in crosstool-ng path
+      -c realClean   - Unmounts the image and removes it. This destroys EVERYTHING!
+      -b             - Build the cross compiler AFTER building the necessary tools
                        and you have defined the crosstool-ng .config file.
-      testBuild      - After the build, run a Hello World test on it.
+      -t             - After the build, run a Hello World test on it.
       help           - This menu.
+      "none"         - Go for it all if no options given. it will always try to 
+                       continue where it left off
 
 HELP_EOF
 }
@@ -172,9 +184,9 @@ function realClean()
    # We need to clean brew as it purges brew's cache
    cleanBrew
 
-   if [ -d  "/Volumes/${ImageName}" ]; then 
-      printf "${KBLU}Unmounting  /Volumes/${ImageName}${KNRM}\n"
-      hdiutil unmount /Volumes/${ImageName}
+   if [ -d  "/Volumes/${Volume}" ]; then 
+      printf "${KBLU}Unmounting  /Volumes/${Volume}${KNRM}\n"
+      hdiutil unmount /Volumes/${Volume}
    fi
 
    # Since everything is on the image, just remove it does it all
@@ -184,9 +196,9 @@ function realClean()
 
 function createCaseSensitiveVolume()
 {
-    printf "${KBLU}Creating volume mounted on /Volumes/${ImageName}...${KNRM}\n"
-    if [  -d "/Volumes/${ImageName}" ]; then
-       printf "WARNING: Volume already exists: /Volumes/${ImageName}${KNRM}\n"
+    printf "${KBLU}Creating volume mounted on /Volumes/${Volume}...${KNRM}\n"
+    if [  -d "/Volumes/${Volume}" ]; then
+       printf "WARNING: Volume already exists: /Volumes/${Volume}${KNRM}\n"
       
        # Give a couple of seconds for the user to react
        sleep 3
@@ -197,14 +209,14 @@ function createCaseSensitiveVolume()
    if [ -f "${ImageNameExt}" ]; then
       printf "${KRED}WARNING:${KNRM}\n"
       printf "         File already exists: ${ImageNameExt}${KNRM}\n"
-      printf "         This file will be mounted as /Volumes/${ImageName}${KNRM}\n"
+      printf "         This file will be mounted as /Volumes/${Volume}${KNRM}\n"
       
       # Give a couple of seconds for the user to react
       sleep 3
 
    else
-      hdiutil create ${ImageName}          \
-                      -volname ${ImageName} \
+      hdiutil create ${ImageName}           \
+                      -volname ${Volume}    \
                       -type SPARSE          \
                       -size 8g              \
                       -fs HFSX              \
@@ -237,8 +249,8 @@ function buildBrewDepends()
    printf "${KRED}Ignore the ERROR: could not link${KNRM}\n"
    printf "${KRED}Ignore the message "
    printf "Please delete these paths and run brew update${KNRM}\n"
-   printf "\n"
    printf "They are created by brew as it is not in /local or with sudo${KNRM}\n"
+   printf "\n"
 
 
    $BrewHome/bin/brew update
@@ -257,7 +269,7 @@ function buildBrewDepends()
 
 function downloadCrossTool()
 {
-   cd /Volumes/${ImageName}
+   cd /Volumes/${Volume}
    printf "${KBLU}Downloading crosstool-ng... to ${PWD}${KNRM}\n"
    CrossToolArchive=${CrossToolVersion}.tar.bz2
    if [ -f "$CrossToolArchive" ]; then
@@ -283,9 +295,9 @@ function downloadCrossTool()
 
 function downloadCrossTool_LATEST()
 {  
-   cd /Volumes/${ImageName}
-
+   cd /Volumes/${Volume}
    printf "${KBLU}Downloading crosstool-ng... to ${PWD}${KNRM}\n"
+
    if [ -d $CT_TOP_DIR ]; then 
       printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
       printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
@@ -305,10 +317,20 @@ function downloadCrossTool_LATEST()
    ./bootstrap
 }
 
+function patchConfigFileForVolume()
+{
+    printf "${KBLU}Patching .config file for 'CrossToolNG' in${PWD}${KNRM}\n"
+    if [ -f ".config" ]; then
+       sed -i .bak -e's/CrossToolNG/'$Volume'/g' .config
+    fi
+}
+
 
 function patchCrosstool()
 {
     cd ${CT_TOP_DIR}
+    printf "${KBLU}Patching crosstool-ng... in ${PWD}${KNRM}\n"
+
     printf "Patching crosstool-ng...${KNRM}\n"
     printf "   -No Patches requires.\n"
     
@@ -320,9 +342,8 @@ function patchCrosstool()
 
 function buildCrosstool()
 {
-   printf "${KBLU}Configuring crosstool-ng...${KNRM}\n"
-
    cd ${CT_TOP_DIR}
+   printf "${KBLU}Configuring crosstool-ng... in ${PWD}${KNRM}\n"
 
    if [ -x ct-ng ]; then
       printf "    - Found existing ct-ng. Using it instead${KNRM}\n"
@@ -347,8 +368,9 @@ function buildCrosstool()
    #        BASH=$BrewHome/bin/bash               \
    #        CFLAGS="-std=c99 -Doffsetof=__builtin_offsetof"
 
-   printf "${KBLU}Compiling crosstool-ng...${KNRM}\n"
+   printf "${KBLU}Compiling crosstool-ng... in ${PWD}${KNRM}\n"
    export PATH=$BrewHome/bin:$PATH
+
    make
 }
 
@@ -364,7 +386,7 @@ function createToolchain()
    fi
 
    # the process seems to open a lot of files at once. The default is 256. Bump it to 1024.
-   ulimit -n 1024
+   #ulimit -n 2048
 
 
    printf "${KBLU}Checking for an existing toolchain config file:${KNRM} ${ToolChainName}.config ...${KNRM}\n"
@@ -372,6 +394,13 @@ function createToolchain()
       printf "   - Using $CrossToolNGConfigFilePath/${ToolChainName}.config${KNRM}\n"
       cp ${CrossToolNGConfigFilePath}/${ToolChainName}.config  \
            ${CT_TOP_DIR}/.config
+
+      cd ${CT_TOP_DIR}
+      if [$Volume == 'CrossToolNG'];then
+         printf "${KNBLU}.config file not being patched as -V was not specified${KNRM}"
+      else
+         patchConfigFileForVolume
+      fi
    else
       printf "   - None found${KNRM}\n"
    fi
@@ -384,7 +413,7 @@ https://gist.github.com/h0tw1r3/19e48ae3021122c2a2ebe691d920a9ca
 - Paths and misc options
     - Check "Try features marked as EXPERIMENTAL"
     - Set "Prefix directory" to the real values of:
-        /Volumes/$ImageName/x-tools/${CT_TARGET}
+        /Volumes/$Volume/x-tools/${CT_TARGET}
 
 - Target options
     - Set "Target Architecture" to "arm"
@@ -428,7 +457,8 @@ CONFIG_EOF
    ./ct-ng menuconfig
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
-   printf "${KBLU}Execute:${KNRM}bash build.sh continueBuild${KNRM}\n"
+   printf "${KBLU}to contineu the build${KNRM}\n"
+   printf "${KBLU}Execute:${KNRM}bash build.sh -b       (To continue build)${KNRM}\n"
    printf "${KBLU}or${KNRM}\n"
    printf "PATH=${BrewHome}/bin:\$PATH${KNRM}\n"
    printf "cd ${CT_TOP_DIR}${KNRM}\n"
@@ -441,7 +471,7 @@ function buildToolchain()
 {
    printf "${KBLU}Building toolchain...${KNRM}\n"
 
-   cd /Volumes/${ImageName}
+   cd /Volumes/${Volume}
 
    # Allow the source that crosstools-ng downloads to be saved
    printf "${KBLU}Checking for:${KNRM} ${PWD}/src ...${KNRM}"
@@ -476,6 +506,7 @@ function buildToolchain()
 
 function testBuild
 {
+   printf "${KBLU}Testing toolchain ${ToolChainName}...${KNRM}\n"
 
 cat <<'HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
 #include <iostream>
@@ -488,79 +519,92 @@ int main ()
 }
 HELLO_WORLD_EOF
 
-PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ /tmp/HelloWorld.cpp -o /tmp/HelloWorld
-}
-
-function main()
-{
-   printf "${KBLU}Here we go ....${KNRM}\n"
-
-   # Create the case sensitive volume first.  This is where we will
-   # put Brew too.
-   createCaseSensitiveVolume
-   buildBrewDepends
-
-   # The 1.23  archive is busted and does nnot contain CT_Mirror, until
-   # it is fixed, use git Latest
-   if [ ${downloadCrosstoolLatest} == 'y' ]; then
-      downloadCrossTool_LATEST
-   else
-      downloadCrossTool
-   fi
-
-   patchCrosstool
-   buildCrosstool
-   createToolchain
+# PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -specs=nosys.specs -mthumb -mcpu=cortex-m3 /tmp/HelloWorld.cpp -fno-exceptions -o /tmp/HelloWorld
+#PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
+PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
 }
 
 
+while getopts "hc:I:V:t" opt; do
+   case $opt in
+      h)
+          showHelp
+          exit 0;
+          ;;
+          #####################
+      c)
+          if  [ $OPTARG "Brew" ]]; then
+             cleanBrew
+             exit 0
+          fi
+          if  [ $OPTARG "ct-ng" ]]; then
+             ct-ngMakeClean
+             exit 0
+          fi
+          if  [ $OPTARG "real" ]]; then
+             realClean
+             exit 0
+          fi
 
-if [ $# -gt 0 ] && [[ "$1" == *"help" ]] ; then
-   set -u
-   showHelp
-   exit 0
+          printf "${KRED}Invalid option: -c ${KNRM}$OPTARG${KNRM}\n"
+          exit 1
+          ;;
+          #####################
+      b)
+          buildToolChain
+          exit 0
+          ;;
+          #####################
+      t)
+          testBuild
+          exit 0
+          ;;
+          #####################
+      i)
+          ImageName=$OPTARG
+          ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
+          ;;
+          #####################
+      V)
+          Volume=$OPTARG
+
+          # Change all variables that require this
+          BrewHome="/Volumes/${Volume}/brew"
+          export BREW_PREFIX=$BrewHome
+          CT_TOP_DIR="/Volumes/${Volume}/${CrossToolSourceDir}" 
+          ;;
+          #####################
+      \?)
+          printf "${KRED}Invalid option: ${KNRM}-$OPTARG${KNRM}\n"
+          exit 1
+          ;;
+          #####################
+      :)
+          printf "${KRED}Option ${KNRM}-$OPTARG {$KRED} requires an argument.\n" 
+          exit 1
+          ;;
+          #####################
+   esac
+done
+
+printf "${KBLU}Here we go ....${KNRM}\n"
+
+# Create the case sensitive volume first.  This is where we will
+# put Brew too.
+createCaseSensitiveVolume
+buildBrewDepends
+
+# The 1.23  archive is busted and does nnot contain CT_Mirror, until
+# it is fixed, use git Latest
+if [ ${downloadCrosstoolLatest} == 'y' ]; then
+   downloadCrossTool_LATEST
+else
+   downloadCrossTool
 fi
 
-if  [ $# -gt 0 ] && [[ "$1" == *"cleanBrew" ]]; then
-   set -u
-   cleanBrew
-   exit 0
-fi
-
-if  [ $# -gt 0 ] && [[ "$1" == *"ct-ngMakeClean" ]]; then
-   ct-ngMakeClean
-   exit 0
-fi
-
-if  [ $# -gt 0 ] && [[ "$1" == *"realClean" ]]; then
-   realClean
-   exit 0
-fi
-
-if  [ $# -gt 0 ] && [[ "$1" == *"continueBuild" ]]; then
-   buildToolchain
-   exit 0
-fi
-
-if  [ $# -gt 0 ] && [[ "$1" == *"testBuild" ]]; then
-   testBuild
-   exit 0
-fi
-
-# Exit immediately for unbound variables.
-set -u
-
-
-# A simple way to check for Unknown options
-if [ "$#" -ne 0 ]; then
-   printf "${KRED}ERROR: Unknown Option:${KNRM}${1}\n"
-
-   printf "Try: ${0} help  - For more options${KNRM}\n"
-
-   exit -1
-
-fi
-
-main
+patchCrosstool
+buildCrosstool
+createToolchain
+testBuild
 
 exit 0
