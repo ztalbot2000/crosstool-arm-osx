@@ -458,7 +458,11 @@ CONFIG_EOF
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
-   printf "${KBLU}Execute:${KNRM}bash build.sh -b       (To continue build)${KNRM}\n"
+   if [ $Volume == 'CrossToolNG' ]; then
+      printf "${KBLU}Execute:${KNRM}bash build.sh -b       (To continue build)${KNRM}\n"
+   else
+      printf "${KBLU}Execute:${KNRM}bash build.sh -V ${Volume} -b       (To continue build)${KNRM}\n"
+   fi
    printf "${KBLU}or${KNRM}\n"
    printf "PATH=${BrewHome}/bin:\$PATH${KNRM}\n"
    printf "cd ${CT_TOP_DIR}${KNRM}\n"
@@ -525,7 +529,7 @@ PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -f
 }
 
 
-while getopts "hc:I:V:t" opt; do
+while getopts "hc:I:V:bt" opt; do
    case $opt in
       h)
           showHelp
@@ -551,7 +555,7 @@ while getopts "hc:I:V:t" opt; do
           ;;
           #####################
       b)
-          buildToolChain
+          buildToolchain
           exit 0
           ;;
           #####################
@@ -605,6 +609,5 @@ fi
 patchCrosstool
 buildCrosstool
 createToolchain
-testBuild
 
 exit 0
