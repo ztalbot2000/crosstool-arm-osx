@@ -460,9 +460,9 @@ CONFIG_EOF
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
    if [ $Volume == 'CrossToolNG' ]; then
-      printf "${KBLU}Execute:${KNRM}bash build.sh -b       (To continue build)${KNRM}\n"
+      printf "${KBLU}Execute:${KNRM}bash build.sh -b${KNRM}\n"
    else
-      printf "${KBLU}Execute:${KNRM}bash build.sh -V ${Volume} -b       (To continue build)${KNRM}\n"
+      printf "${KBLU}Execute:${KNRM}bash build.sh -V ${Volume} -b${KNRM}\n"
    fi
    printf "${KBLU}or${KNRM}\n"
    printf "PATH=${BrewHome}/bin:\$PATH${KNRM}\n"
