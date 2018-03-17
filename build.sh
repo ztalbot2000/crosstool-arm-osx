@@ -85,8 +85,9 @@ BrewHome="/Volumes/${Volume}/brew"
 # wget  is reauired when configuring crosstool-ng
 # wget  requires all kinds of stuff that is auto downloaded by brew. Sorry
 # automake is required to fix a compile issue with gettect
+# coreutils is for sha512sum
 #
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake"
+BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils"
 
 # This is required so brew can be installed elsewhere
 export BREW_PREFIX=$BrewHome
@@ -537,15 +538,15 @@ while getopts "hc:I:V:bt" opt; do
           ;;
           #####################
       c)
-          if  [ $OPTARG "Brew" ]]; then
+          if  [ $OPTARG == "Brew" ]; then
              cleanBrew
              exit 0
           fi
-          if  [ $OPTARG "ct-ng" ]]; then
+          if  [ $OPTARG == "ct-ng" ]; then
              ct-ngMakeClean
              exit 0
           fi
-          if  [ $OPTARG "real" ]]; then
+          if  [ $OPTARG == "real" ]; then
              realClean
              exit 0
           fi
