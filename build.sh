@@ -56,14 +56,6 @@ downloadCrosstoolLatest=y
 # be <ImageName>.sparseimage
 ImageName="CrossToolNG"
 
-# This will be mounted as /Volumes/CrossToolNG
-# It can be overriden with -V <volume>
-Volume="CrossToolNG"
-
-# This will be the name of the toolchain created by crosstools-ng
-# It is placed in $CT_TOP_DIR
-ToolChainName="arm-unknown-linux-gnueabihf"
-
 #
 # This is where your §{ToolchainName".config file is if you have one.
 # It would be copied to $CT_TOP_DIR/.config prior to ct-ng menuconfig
@@ -73,6 +65,24 @@ CrossToolNGConfigFilePath=`pwd`
 #
 # Anything below here cannot be changed without bad effects
 #
+
+# This will be mounted as /Volumes/CrossToolNG
+# It can be overriden with -V <Volume>.  Do this instead as 'CrossToolNG' is
+# a key word in the .config file with this tool that will automatically get
+# changed with the -V <Volume> option
+Volume='CrossToolNG'
+
+# The compiler will be placed in /Volumes/<Volume>/x-tools
+# It can be overriden with -O <OutputPath>.  Do this instead as 'x-tools' is
+# a key word in the .config file with this tool that will automatically get
+# changed with the -O <OutputPath> option
+OutputPath='x-tools'
+
+
+# This will be the name of the toolchain created by crosstools-ng
+# It is placed in $CT_TOP_DIR
+ToolChainName="arm-unknown-linux-gnueabihf"
+
 
 # Where brew will be placed. An existing brew cannot be used because of
 # interferences with macports or fink.
@@ -126,17 +136,28 @@ cat <<'HELP_EOF'
    This shell script is a front end to crosstool-ng to help build a cross compiler on your Mac.  It downloads all the necessary files to build the cross compiler.  It only assumes you have Xcode command line tools installed.
 
    Options:
-      -i <ImageName> - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
-      -V <Volume>    - Instead of /Volumes/CrosstoolNG/ use /Volumes/<Volume>
-      -c Brew        - Remove all installed Brew tools.
-      -c ct-ng       - Run make clean in crosstool-ng path
-      -c realClean   - Unmounts the image and removes it. This destroys EVERYTHING!
-      -b             - Build the cross compiler AFTER building the necessary tools
-                       and you have defined the crosstool-ng .config file.
-      -t             - After the build, run a Hello World test on it.
-      help           - This menu.
-      "none"         - Go for it all if no options given. it will always try to 
-                       continue where it left off
+      -I <ImageName>  - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
+      -V <Volume>     - Instead of /Volumes/CrosstoolNG/
+                               use
+                                   /Volumes/<Volume>
+                           Note: To do this the .config file is changed automatically
+                                 from CrosstoolNG  to <Volume>
+
+      -O <OutputPath> - Instead of /Volumes/<Volume>/x-tools
+                               use
+                                   /Volumes/<Volume>/<OutputPath>
+                           Note: To do this the .config file is changed automatically
+                                 from x-tools  to <OutputPath>
+
+      -c Brew         - Remove all installed Brew tools.
+      -c ct-ng        - Run make clean in crosstool-ng path
+      -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
+      -b              - Build the cross compiler AFTER building the necessary tools
+                        and you have defined the crosstool-ng .config file.
+      -t              - After the build, run a Hello World test on it.
+      help            - This menu.
+      "none"          - Go for it all if no options given. it will always try to 
+                        continue where it left off
 
 HELP_EOF
 }
@@ -320,9 +341,16 @@ function downloadCrossTool_LATEST()
 
 function patchConfigFileForVolume()
 {
-    printf "${KBLU}Patching .config file for 'CrossToolNG' in${PWD}${KNRM}\n"
+    printf "${KBLU}Patching .config file for 'CrossToolNG' in ${PWD}${KNRM}\n"
     if [ -f ".config" ]; then
        sed -i .bak -e's/CrossToolNG/'$Volume'/g' .config
+    fi
+}
+function patchConfigFileForOutputPath()
+{
+    printf "${KBLU}Patching .config file for 'x-tools' in ${PWD}${KNRM}\n"
+    if [ -f ".config" ]; then
+       sed -i .bak2 -e's/x-tools/'$OutputPath'/g' .config
     fi
 }
 
@@ -402,6 +430,11 @@ function createToolchain()
       else
          patchConfigFileForVolume
       fi
+      if [$OutputPath == 'x-tools'];then
+         printf "${KNBLU}.config file not being patched as -O was not specified${KNRM}"
+      else
+         patchConfigFileForOutputPath
+      fi
    else
       printf "   - None found${KNRM}\n"
    fi
@@ -414,7 +447,7 @@ https://gist.github.com/h0tw1r3/19e48ae3021122c2a2ebe691d920a9ca
 - Paths and misc options
     - Check "Try features marked as EXPERIMENTAL"
     - Set "Prefix directory" to the real values of:
-        /Volumes/$Volume/x-tools/${CT_TARGET}
+        /Volumes/$Volume/$OutputPath/${CT_TARGET}
 
 - Target options
     - Set "Target Architecture" to "arm"
@@ -459,11 +492,14 @@ CONFIG_EOF
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
-   if [ $Volume == 'CrossToolNG' ]; then
-      printf "${KBLU}Execute:${KNRM}bash build.sh -b${KNRM}\n"
-   else
-      printf "${KBLU}Execute:${KNRM}bash build.sh -V ${Volume} -b${KNRM}\n"
+   printf "${KBLU}Execute:${KNRM}bash build.sh${KNRM}"
+   if [ $Volume != 'CrossToolNG' ]; then
+      printf "${KNRM} -V ${Volume}${KNRM}"
    fi
+   if [ $OutputPath != 'x-tools' ]; then
+      printf "${KNRM} -O ${OutputPath}${KNRM}"
+   fi
+   printf "${KNRM} -b${KNRM}\n"
    printf "${KBLU}or${KNRM}\n"
    printf "PATH=${BrewHome}/bin:\$PATH${KNRM}\n"
    printf "cd ${CT_TOP_DIR}${KNRM}\n"
@@ -526,10 +562,10 @@ HELLO_WORLD_EOF
 
 # PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -specs=nosys.specs -mthumb -mcpu=cortex-m3 /tmp/HelloWorld.cpp -fno-exceptions -o /tmp/HelloWorld
 #PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
-PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
+PATH=/Volumes/${Volume}/$OutputPath/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
 }
 
-OPTSTRING='hc:I:V:bt'
+OPTSTRING='hc:I:V:O:bt'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -546,6 +582,9 @@ while getopts "$OPTSTRING" opt; do
           BrewHome="/Volumes/${Volume}/brew"
           export BREW_PREFIX=$BrewHome
           CT_TOP_DIR="/Volumes/${Volume}/${CrossToolSourceDir}"
+          ;;
+      O)
+          OutputPath=$OPTARG
           ;;
    esac
 done
