@@ -460,9 +460,9 @@ CONFIG_EOF
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
    if [ $Volume == 'CrossToolNG' ]; then
-      printf "${KBLU}Execute:${KNRM}bash build.sh -b       (To continue build)${KNRM}\n"
+      printf "${KBLU}Execute:${KNRM}bash build.sh -b${KNRM}\n"
    else
-      printf "${KBLU}Execute:${KNRM}bash build.sh -V ${Volume} -b       (To continue build)${KNRM}\n"
+      printf "${KBLU}Execute:${KNRM}bash build.sh -V ${Volume} -b${KNRM}\n"
    fi
    printf "${KBLU}or${KNRM}\n"
    printf "PATH=${BrewHome}/bin:\$PATH${KNRM}\n"
@@ -529,8 +529,31 @@ HELLO_WORLD_EOF
 PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
 }
 
+OPTSTRING='hc:I:V:bt'
 
-while getopts "hc:I:V:bt" opt; do
+# Getopt #1 - To enforce order
+while getopts "$OPTSTRING" opt; do
+   case $opt in
+      I)
+          ImageName=$OPTARG
+          ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
+          ;;
+          #####################
+      V)
+          Volume=$OPTARG
+
+          # Change all variables that require this
+          BrewHome="/Volumes/${Volume}/brew"
+          export BREW_PREFIX=$BrewHome
+          CT_TOP_DIR="/Volumes/${Volume}/${CrossToolSourceDir}"
+          ;;
+   esac
+done
+
+# Reset the index for the next getopt optarg
+OPTIND=1
+
+while getopts "$OPTSTRING" opt; do
    case $opt in
       h)
           showHelp
@@ -565,18 +588,12 @@ while getopts "hc:I:V:bt" opt; do
           exit 0
           ;;
           #####################
-      i)
-          ImageName=$OPTARG
-          ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
+      I)
+          # Done in first getopt for proper ordert
           ;;
           #####################
       V)
-          Volume=$OPTARG
-
-          # Change all variables that require this
-          BrewHome="/Volumes/${Volume}/brew"
-          export BREW_PREFIX=$BrewHome
-          CT_TOP_DIR="/Volumes/${Volume}/${CrossToolSourceDir}" 
+          # Done in first getopt for proper ordert
           ;;
           #####################
       \?)
@@ -591,6 +608,7 @@ while getopts "hc:I:V:bt" opt; do
           #####################
    esac
 done
+
 
 printf "${KBLU}Here we go ....${KNRM}\n"
 
