@@ -26,6 +26,8 @@ About the build Script
 ---------------------------
 The script downloads, compiles and installs all necessary software. The only prerequisite I know of is to have the latest version of XCode and have the command line tools installed. It works for me without modification on OSX 10.13.3 with XCode 9.2
 
+*** The purpose is to eventually have a full script that builds on OSX and will compile the latest Linux with RT patches and with LinuxCnC.
+
 
 How the build Script Works
 ---------------------------------
