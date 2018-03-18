@@ -59,8 +59,16 @@ ImageName="CrossToolNG"
 #
 # This is where your §{ToolchainName".config file is if you have one.
 # It would be copied to $CT_TOP_DIR/.config prior to ct-ng menuconfig
-#
-CrossToolNGConfigFilePath=`pwd`
+# It can be overriden with -f <ConfigFile>. Please do this instead of
+# changing it here.
+CrossToolNGConfigFile="${PWD}/arm-rpi3-eabihf.config"
+
+# This will be the name of the toolchain created by crosstools-ng
+# It is placed in $CT_TOP_DIR
+# The real name is based upon the options you have set in the CrossToolNG
+# config file. You will probably need to change this.  I feel another option
+# coming
+ToolChainName='arm-rpi3-eabihf'
 
 #
 # Anything below here cannot be changed without bad effects
@@ -79,9 +87,6 @@ Volume='CrossToolNG'
 OutputPath='x-tools'
 
 
-# This will be the name of the toolchain created by crosstools-ng
-# It is placed in $CT_TOP_DIR
-ToolChainName="arm-unknown-linux-gnueabihf"
 
 
 # Where brew will be placed. An existing brew cannot be used because of
@@ -152,6 +157,8 @@ cat <<'HELP_EOF'
       -c Brew         - Remove all installed Brew tools.
       -c ct-ng        - Run make clean in crosstool-ng path
       -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
+      -f <configFile> - The name and path of the config file to use.
+                        Default is arm-rpi3-eabihf.config
       -b              - Build the cross compiler AFTER building the necessary tools
                         and you have defined the crosstool-ng .config file.
       -t              - After the build, run a Hello World test on it.
@@ -418,25 +425,33 @@ function createToolchain()
    #ulimit -n 2048
 
 
-   printf "${KBLU}Checking for an existing toolchain config file:${KNRM} ${ToolChainName}.config ...${KNRM}\n"
-   if [ -f ${CrossToolNGConfigFilePath}/${ToolChainName}.config ]; then
-      printf "   - Using $CrossToolNGConfigFilePath/${ToolChainName}.config${KNRM}\n"
-      cp ${CrossToolNGConfigFilePath}/${ToolChainName}.config  \
-           ${CT_TOP_DIR}/.config
+   printf "${KBLU}Checking for an existing toolchain config file:${KNRM} ${CrossToolNGConfigFile} ...${KNRM}\n"
+   if [ -f "${CrossToolNGConfigFile}" ]; then
+      printf "   - Using ${CrossToolNGConfigFile}${KNRM}\n"
+      cp "${CrossToolNGConfigFile}"  "${CT_TOP_DIR}/.config"
 
-      cd ${CT_TOP_DIR}
-      if [$Volume == 'CrossToolNG'];then
-         printf "${KNBLU}.config file not being patched as -V was not specified${KNRM}"
+      cd "${CT_TOP_DIR}"
+      if [ "$Volume" == 'CrossToolNG' ];then
+         printf "${KNBLU}.config file not being patched as -V was not specified${KNRM}\n"
       else
          patchConfigFileForVolume
       fi
-      if [$OutputPath == 'x-tools'];then
-         printf "${KNBLU}.config file not being patched as -O was not specified${KNRM}"
+      if [ "$OutputPath" == 'x-tools' ];then
+         printf "${KNBLU}.config file not being patched as -O was not specified${KNRM}\n"
       else
          patchConfigFileForOutputPath
       fi
    else
       printf "   - None found${KNRM}\n"
+      if [ -f  "${CT_TOP_DIR}/.config" ]; then
+         # We have some sort of config file to continue with
+ 
+         # Stupid bash 
+         printf "$KNRM"
+      else
+         printf "${KRED}There is no CrosstoolNG .config file to continue with${KNRM}\n"
+         exit 1
+      fi
    fi
 
 cat <<'CONFIG_EOF'
@@ -450,33 +465,14 @@ https://gist.github.com/h0tw1r3/19e48ae3021122c2a2ebe691d920a9ca
         /Volumes/$Volume/$OutputPath/${CT_TARGET}
 
 - Target options
-    - Set "Target Architecture" to "arm"
-    - Set "Endianness" to "Little endian"
-    - Set "Bitness" to "32-bit"
-    - Set "Architecture level" to "armv6zk"
-    - Set "Emit assembly for CPU" to "arm1176jzf-s"
-    - Set "Use specific FPU" to "vfp"
-    - Set "Floating point" to "hardware (FPU)"
-    - Set "Default instruction set mode" to "arm"
-    - Check "Use EABI"
-- Toolchain options
-    - Set "Tuple's vendor string" to "rpi"
-- Operating System
-    - Set "Target OS" to "linux"
-- Binary utilities
-    - Set "Binary format" to "ELF"
-    - Set "binutils version" to "2.25.1"
-- C-library
-    - Set "C library" to "glibc"
-    - Set "glibc version" to "2.19"
-- C compiler
-    - Check "Show Linaro versions"
-    - Set "gcc version" to "linaro-4.9-2015.06"
-    - Check "C++" under "Additional supported languages"
-    - Set "gcc extra config" to "--with-float=hard"
-    - Check "Link libstdc++ statically into the gcc binary"
-- Companion libraries
-    - Set "ISL version" to "0.14
+    By default this script builds the configuration for arm-rpi3-eabihf as this is my focus; However, crosstool-ng can build so many different types of cross compilers.  If you are interested in them, check out the samples with:
+
+      ct-ng list-samples
+
+    You could also just go to the crosstool-ng-src/samples directory and peruse them all.
+
+   At least using this script will help you try configurations more easily.
+   
 
 CONFIG_EOF
 
@@ -560,12 +556,11 @@ int main ()
 }
 HELLO_WORLD_EOF
 
-# PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -specs=nosys.specs -mthumb -mcpu=cortex-m3 /tmp/HelloWorld.cpp -fno-exceptions -o /tmp/HelloWorld
-#PATH=/Volumes/CrossToolNG/x-tools/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
-PATH=/Volumes/${Volume}/$OutputPath/arm-rpi-eabihf/bin:$PATH arm-rpi-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
+PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH arm-rpi3-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
 }
 
-OPTSTRING='hc:I:V:O:bt'
+# Define this once and you save yourself some trouble
+OPTSTRING='hc:I:V:O:f:bt'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -585,6 +580,17 @@ while getopts "$OPTSTRING" opt; do
           ;;
       O)
           OutputPath=$OPTARG
+          ;;
+      f)
+          CrossToolNGConfigFile=$OPTARG
+
+          # Do a quick check before we begin
+          if [ -f "${CrossToolNGConfigFile}" ]; then
+             printf "${KNRM}${CrossToolNGConfigFile} ...${KGRN}found${KNRM}\n"
+          else
+             printf "${KNRM}${CrossToolNGConfigFile} ...${KRED}not found${KNRM}\n"
+             exit 1
+          fi
           ;;
    esac
 done
