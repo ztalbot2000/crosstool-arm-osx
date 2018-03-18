@@ -38,7 +38,7 @@ The script then downlaods and installs crosstool-ng. It helps to be a little fam
 Once crosstool-ng is installed, it is configured with the arm-unknown-linux-gnueabi.config file by copying that file to the approproite location and alter it for $Volume. The script then automatically fires up the crosstool config menu (menuconfig) so you can make changes. The menuconfig program is basically a front end for the config file. You can either make changes or just exit. You can also just edit the config file before running the script and remove call to:
 
        PATH=/Volumes/${Volume}/brew/bin:$PATH
-      /Volumes/$(VOLUME}/crosstool-ng-src/ct-ng menuconfig
+      /Volumes/$({OLUME}/crosstool-ng-src/ct-ng menuconfig
 
 Once that is all done, we run the build. If all goes well, you will then have a toolchain for comiling arm code on osx. The default install is in /Volumes/CrossToolNG/install/arm-unknown-linux-gnueabi
 
