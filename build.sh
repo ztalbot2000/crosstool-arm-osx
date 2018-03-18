@@ -68,7 +68,7 @@ CrossToolNGConfigFile="${PWD}/arm-rpi3-eabihf.config"
 # The real name is based upon the options you have set in the CrossToolNG
 # config file. You will probably need to change this.  I feel another option
 # coming
-ToolChainName='arm-rpi3-eabihf'
+ToolchainName='arm-rpi3-eabihf'
 
 #
 # Anything below here cannot be changed without bad effects
@@ -412,13 +412,13 @@ function buildCrosstool()
 
 function createToolchain()
 {
-   printf "${KBLU}Creating toolchain ${ToolChainName}...${KNRM}\n"
+   printf "${KBLU}Creating toolchain ${ToolchainName}...${KNRM}\n"
 
 
    cd ${CT_TOP_DIR}
 
-   if [ ! -d "${ToolChainName}" ]; then
-      mkdir $ToolChainName
+   if [ ! -d "${ToolchainName}" ]; then
+      mkdir $ToolchainName
    fi
 
    # the process seems to open a lot of files at once. The default is 256. Bump it to 1024.
@@ -543,7 +543,7 @@ function buildToolchain()
 
 function testBuild
 {
-   printf "${KBLU}Testing toolchain ${ToolChainName}...${KNRM}\n"
+   printf "${KBLU}Testing toolchain ${ToolchainName}...${KNRM}\n"
 
 cat <<'HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
 #include <iostream>
