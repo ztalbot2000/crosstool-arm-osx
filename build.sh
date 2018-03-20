@@ -61,7 +61,8 @@ ImageName="CrossToolNG"
 # It would be copied to $CT_TOP_DIR/.config prior to ct-ng menuconfig
 # It can be overriden with -f <ConfigFile>. Please do this instead of
 # changing it here.
-CrossToolNGConfigFile="${PWD}/arm-rpi3-eabihf.config"
+CrossToolNGConfigFile="arm-rpi3-eabihf.config"
+CrossToolNGConfigFilePath="${PWD}"
 
 # This will be the name of the toolchain created by crosstools-ng
 # It is placed in $CT_TOP_DIR
@@ -102,10 +103,28 @@ BrewHome="/Volumes/${Volume}/brew"
 # automake is required to fix a compile issue with gettect
 # coreutils is for sha512sum
 #
+# for Raspbian tools - libelf gcc ncurses
+# for xconfig - QT   (takes hours)
 BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils"
 
 # This is required so brew can be installed elsewhere
+# Comments are for cut and paste during development
+# export Volume=BLANK
+# export BREW_PREFIX=/Volumes/${Volume}/brew
+# export PKG_CONFIG_PATH=${BREW_PREFIX}
+# export OutputPath='x-tools2'
+# ToolchainName='arm-rpi3-eabihf'
+# PATH=/Volumee/${Volume}/${OutputPath}${ToolchainName}/bin:${BREW_PREFIX}/bin:${PATH}
+# EXTRA_CFLAGS=-I${PWD}/arch/arm/include/asm
+# export CCPREFIX=/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/bin/arm-rpi3-eabihf-
+# ARCH=arm CROSS_COMPILE=${CCPREFIX} make O=/Volumes/${Volume}/build/kernel
+# make ARCH=arm CROSS_COMPILE=${CCPREFIX} O=/Volumes/${Volume}/build/kernel HOSTCFLAGS="-I/Volumes/BLANK/Raspbian-src/linux/arch/arm/include/asm"
+#  make ARCH=arm CROSS_COMPILE=${CCPREFIX} O=/Volumes/${Volume}/build/kernel HOSTCFLAGS="--sysroot=/Volumes/BLANK/Raspbian-src/linux -I/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/arm-rpi3-eabihf/sys-include"
+ 
+
+
 export BREW_PREFIX=$BrewHome
+export PKG_CONFIG_PATH=$BREW_PREFIX
 
 # This is the crosstools-ng version used by curl to fetch relased version
 # of crosstools-ng. I don't know if it works with previous versions and
@@ -121,6 +140,11 @@ CT_TOP_DIR="/Volumes/CrossToolNG/crosstool-ng-src"
 CT_TOP_DIR="/Volumes/${Volume}/${CrossToolSourceDir}" 
 
 ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
+
+
+
+# Options for Rasbian below here
+BuildRaspbian=n
 
 # Fun colour stuff
 KNRM="\x1B[0m"
@@ -162,6 +186,7 @@ cat <<'HELP_EOF'
       -b              - Build the cross compiler AFTER building the necessary tools
                         and you have defined the crosstool-ng .config file.
       -t              - After the build, run a Hello World test on it.
+      -r              - Download and build Raspbian.
       help            - This menu.
       "none"          - Go for it all if no options given. it will always try to 
                         continue where it left off
@@ -288,7 +313,7 @@ function buildBrewDepends()
    set +e
 
    # $BrewHome/bin/brew install --with-default-names $BrewTools && true
-   $BrewHome/bin/brew install $BrewTools && true
+   $BrewHome/bin/brew install $BrewTools --with-real-names && true
 
    # change to Exit immediately if a command exits with a non-zero status.
    set -e
@@ -425,19 +450,19 @@ function createToolchain()
    #ulimit -n 2048
 
 
-   printf "${KBLU}Checking for an existing toolchain config file:${KNRM} ${CrossToolNGConfigFile} ...${KNRM}\n"
-   if [ -f "${CrossToolNGConfigFile}" ]; then
-      printf "   - Using ${CrossToolNGConfigFile}${KNRM}\n"
-      cp "${CrossToolNGConfigFile}"  "${CT_TOP_DIR}/.config"
+   printf "${KBLU}Checking for an existing toolchain config file:${KNRM} ${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile} ...${KNRM}\n"
+   if [ -f "${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}" ]; then
+      printf "   - Using ${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}${KNRM}\n"
+      cp "${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}"  "${CT_TOP_DIR}/.config"
 
       cd "${CT_TOP_DIR}"
       if [ "$Volume" == 'CrossToolNG' ];then
-         printf "${KNBLU}.config file not being patched as -V was not specified${KNRM}\n"
+         printf "${KBLU}.config file not being patched as -V was not specified${KNRM}\n"
       else
          patchConfigFileForVolume
       fi
       if [ "$OutputPath" == 'x-tools' ];then
-         printf "${KNBLU}.config file not being patched as -O was not specified${KNRM}\n"
+         printf "${KBLU}.config file not being patched as -O was not specified${KNRM}\n"
       else
          patchConfigFileForOutputPath
       fi
@@ -559,8 +584,63 @@ HELLO_WORLD_EOF
 PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH arm-rpi3-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
 }
 
+RaspbianSrcDir="Raspbian-src"
+function downloadRaspbianKernel
+{
+RaspbianURL="https://github.com/raspberrypi/linux.git"
+
+   cd "/Volumes/${Volume}"
+   printf "${KBLU}Downloading Raspbian Kernel latest... to ${PWD}${KNRM}\n"
+
+   if [ -d "${RaspbianSrcDir}" ]; then
+      printf "${KRED}WARNING ${KNRM}Path already exists ${RaspbianSrcDir}${KNRM}\n"
+      printf "        A fetch will be done instead to keep tree up to date{KNRM}\n"
+      printf "\n"
+      cd "${RaspbianSrcDir}/linux"
+      git fetch
+    
+   else
+      printf "${KBLU}Creating ${RaspbianSrcDir} ... ${KNRM}"
+      mkdir "${RaspbianSrcDir}"
+      printf "${KGRN}done${KNRM}\n"
+
+      cd "${RaspbianSrcDir}"
+      git clone --depth=1 ${RaspbianURL}
+   fi
+}
+
+function configureRaspbianKernel
+{
+   cd "/Volumes/${Volume}/${RaspbianSrcDir}/linux"
+   printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
+   PATH=$BrewHome/bin:$PATH 
+
+   # Cleaning tree
+   printf "${KBLU}Make mrproper in ${PWD}${KNRM}\n"
+   make O=/Volumes/${Volume}/build/kernel mrproper
+
+   # Only thing changed were
+
+   # *
+   # * General setup
+   # *
+   # Cross-compiler tool prefix (CROSS_COMPILE) [] (NEW) 
+
+
+   # Preemption Model  (Just past Linux Guest support)
+   #   1. No Forced Preemption (Server) (PREEMPT_NONE) (NEW)
+   # > 2. Voluntary Kernel Preemption (Desktop) (PREEMPT_VOLUNTARY)
+   #   3. Preemptible Kernel (Low-Latency Desktop) (PREEMPT) (NEW)
+   # choice[1-3]: 3
+
+   make O=/Volumes/${Volume}/build/kernel nconfig
+   make O=/Volumes/${Volume}/build/kernel
+
+
+}
+
 # Define this once and you save yourself some trouble
-OPTSTRING='hc:I:V:O:f:bt'
+OPTSTRING='hc:I:V:O:f:btr'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -585,10 +665,10 @@ while getopts "$OPTSTRING" opt; do
           CrossToolNGConfigFile=$OPTARG
 
           # Do a quick check before we begin
-          if [ -f "${CrossToolNGConfigFile}" ]; then
-             printf "${KNRM}${CrossToolNGConfigFile} ...${KGRN}found${KNRM}\n"
+          if [ -f "${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}" ]; then
+             printf "${KNRM}${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile} ...${KGRN}found${KNRM}\n"
           else
-             printf "${KNRM}${CrossToolNGConfigFile} ...${KRED}not found${KNRM}\n"
+             printf "${KNRM}${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile} ...${KRED}not found${KNRM}\n"
              exit 1
           fi
           ;;
@@ -639,6 +719,14 @@ while getopts "$OPTSTRING" opt; do
           #####################
       V)
           # Done in first getopt for proper ordert
+          ;;
+          #####################
+      r)
+          # Done in first getopt for proper ordert
+          buildRaspbian=y
+          downloadRaspbianKernel
+          configureRaspbianKernel
+          exit 0
           ;;
           #####################
       \?)
