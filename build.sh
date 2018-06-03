@@ -102,10 +102,11 @@ BrewHome="/Volumes/${Volume}/brew"
 # wget  requires all kinds of stuff that is auto downloaded by brew. Sorry
 # automake is required to fix a compile issue with gettect
 # coreutils is for sha512sum
+# sha2 is for sha512
 #
 # for Raspbian tools - libelf gcc ncurses
 # for xconfig - QT   (takes hours)
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils"
+BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext"
 
 # This is required so brew can be installed elsewhere
 # Comments are for cut and paste during development
@@ -317,6 +318,101 @@ function buildBrewDepends()
 
    # change to Exit immediately if a command exits with a non-zero status.
    set -e
+
+   printf "${KBLU}Checking for $BrewHome/bin/gsha512sum ...${KNRM}"
+   if [ ! -f $BrewHome/bin/gsha512sum ]; then
+      printf "${KRED}Not found${KNRM}\n"
+      exit 1
+   fi
+   printf "${KGRN}found${KNRM}\n"
+   printf "${KBLU}Checking for $BrewHome/bin/sha512sum ...${KNRM}"
+   if [ ! -f $BrewHome/bin/gsha512sum ]; then
+      printf "${KNRM}\nLinking gsha512sum to sha512sum${KNRM}\n"
+      ln -s $BrewHome/bin/gsha512sum $BrewHome/bin/sha512sum
+   else
+      printf "${KGRN}found${KNRM}\n"
+   fi
+
+   printf "${KBLU}Checking for $BrewHome/bin/gsha256sum ...${KNRM}"
+   if [ ! -f $BrewHome/bin/gsha256sum ]; then
+      printf "${KRED}Not found${KNRM}\n"
+      exit 1
+   fi
+   printf "${KGRN}found${KNRM}\n"
+   printf "${KBLU}Checking for $BrewHome/bin/sha256sum ...${KNRM}"
+   if [ ! -f $BrewHome/bin/gsha256sum ]; then
+      printf "${KNRM}\nLinking gsha256sum to sha256sum${KNRM}\n"
+      ln -s $BrewHome/bin/gsha256sum $BrewHome/bin/sha256sum
+   else
+      printf "${KGRN}found${KNRM}\n"
+   fi
+
+}
+
+# This was one try. It does not work because --with-libintl-prefix does not
+# I will leave this here because if you search for libintl problems,
+# there are many
+function fixLibIntlTry1()
+{
+   printf "${KBLU}Making gettext libintl available ${KNRM}\n"
+   gettextVersion=$(brew list --versions gettext | awk '{print $2}')
+
+   gettextInclude=${BrewHome}/Cellar/gettext/${gettextVersion}/include
+   gettextLib=${BrewHome}/Cellar/gettext/${gettextVersion}/lib
+   
+   if [ ! -d "$gettextInclude" ]; then
+      printf "${KEDU}Gettext include not found. ${gettextInclude}${KNRM}\n"
+      exit 1
+   fi
+   if [ ! -d "$gettextLib" ]; then
+      printf "${KEDU}Gettext lib not found. ${gettextLib}${KNRM}\n"
+      exit 1
+   fi
+
+   if [ ! -d "$libintlCopyDir" ]; then
+      mkdir "$libintlCopyDir"
+      mkdir "$libintlCopyDir/include"
+      mkdir "$libintlCopyDir/lib"
+
+      printf "${KBLU}Copying gettext include to Brew${KNRM}\n"
+      cd ${gettextInclude}
+      cp libintl.h ${libintlCopyDir}/include/
+
+      printf "${KBLU}Copying gettext lib to Brew${KNRM}\n"
+      cd ${gettextLib}
+      cp libintl.* ${libintlCopyDir}/lib/
+    fi
+
+    printf "${KGRN}Complete${KNRM}\n"
+}
+
+# This did not work either.  libintl.h was not picked up in brew/include
+function fixLibIntlTry2()
+{
+   printf "${KBLU}Making gettext libintl available ${KNRM}\n"
+   gettextVersion=$(brew list --versions gettext | awk '{print $2}')
+
+   if [ ! -d "$gettextInclude" ]; then
+      printf "${KEDU}Gettext include not found. ${gettextInclude}${KNRM}\n"
+      exit 1
+   fi
+   if [ ! -d "$gettextLib" ]; then
+      printf "${KEDU}Gettext lib not found. ${gettextLib}${KNRM}\n"
+      exit 1
+   fi
+
+   if [ ! -f "$brew/include/libintl.h" ]; then
+
+      printf "${KBLU}Copying gettext include to Brew${KNRM}\n"
+      cd ${gettextInclude}
+      cp libintl.h ${$BrewHome}/include/
+
+      printf "${KBLU}Copying gettext lib to Brew${KNRM}\n"
+      cd ${gettextLib}
+      cp libintl.* ${$BrewHome}/lib/
+    fi
+
+    printf "${KGRN}Complete${KNRM}\n"
 }
 
 
@@ -407,13 +503,25 @@ function buildCrosstool()
    printf "${KBLU}Configuring crosstool-ng... in ${PWD}${KNRM}\n"
 
    if [ -x ct-ng ]; then
-      printf "    - Found existing ct-ng. Using it instead${KNRM}\n"
+      printf "${KGRN}    - Found existing ct-ng. Using it instead${KNRM}\n"
       return
    fi
-  
-   PATH=$BrewHome/bin:$PATH 
-   ./configure        \
-          --enable-local                       
+
+   # It is strange that gettext is put in opt
+   gettextDir=${BrewHome}/opt/gettext
+   
+   PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$PATH 
+   export PATH
+   printf "${KBLU} Executing configure --with-libintl-prefix=$gettextDir ${KNRM}\n"
+
+   # export LDFLAGS
+   # export CPPFLAGS
+
+   # --with-libintl-prefix should have been enough, but it seems LDFLAGS and
+   # CPPFLAGS is required too to fix libintl.h not found
+   LDFLAGS="  -L/Volumes/CrossToolNG/brew/opt/gettext/lib -lintl " \
+   CPPFLAGS=" -I/Volumes/CrossToolNG/brew/opt/gettext/include" \
+   ./configure  --with-libintl-prefix=$gettextDir
 
    # These are not needed by crosstool-ng version 1.23.0
    # 
@@ -433,6 +541,7 @@ function buildCrosstool()
    export PATH=$BrewHome/bin:$PATH
 
    make
+   printf "${KGRN}Compilation of ct-ng is Complete ${KNRM}\n"
 }
 
 function createToolchain()
@@ -694,7 +803,7 @@ while getopts "$OPTSTRING" opt; do
              ct-ngMakeClean
              exit 0
           fi
-          if  [ $OPTARG == "real" ]; then
+          if  [ $OPTARG == "realClean" ]; then
              realClean
              exit 0
           fi
@@ -749,6 +858,7 @@ printf "${KBLU}Here we go ....${KNRM}\n"
 # put Brew too.
 createCaseSensitiveVolume
 buildBrewDepends
+# fixLibIntl
 
 # The 1.23  archive is busted and does nnot contain CT_Mirror, until
 # it is fixed, use git Latest
