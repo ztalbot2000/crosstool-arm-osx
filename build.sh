@@ -521,7 +521,7 @@ function buildCrosstool()
    # CPPFLAGS is required too to fix libintl.h not found
    LDFLAGS="  -L/Volumes/CrossToolNG/brew/opt/gettext/lib -lintl " \
    CPPFLAGS=" -I/Volumes/CrossToolNG/brew/opt/gettext/include" \
-   ./configure  --with-libintl-prefix=$gettextDir
+   ./configure  --with-libintl-prefix=$gettextDir --enable-local
 
    # These are not needed by crosstool-ng version 1.23.0
    # 
@@ -566,6 +566,7 @@ function createToolchain()
 
       cd "${CT_TOP_DIR}"
       if [ "$Volume" == 'CrossToolNG' ];then
+
          printf "${KBLU}.config file not being patched as -V was not specified${KNRM}\n"
       else
          patchConfigFileForVolume
