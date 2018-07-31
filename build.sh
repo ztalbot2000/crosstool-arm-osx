@@ -158,6 +158,8 @@ KCYN="\x1B[36m"
 KWHT="\x1B[37m"
 
 
+# a global return code value for those who return one
+rc='0'
 
 
 function showHelp()
@@ -678,20 +680,28 @@ function buildToolchain()
 
 function testBuild
 {
-   printf "${KBLU}Testing toolchain ${ToolchainName}...${KNRM}\n"
+   if [ ! -f "/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/arm-rpi3-eabihf-g++" ]; then
+      printf "${KRED}No executable compiler found. ${KNRM}\n"
+      rc='-1'
+      return
+   fi
 
-cat <<'HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
-#include <iostream>
-using namespace std;
+   cat <<'   HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
+      #include <iostream>
+      using namespace std;
 
-int main ()
-{
-  cout << "Hello World!";
-  return 0;
-}
-HELLO_WORLD_EOF
+      int main ()
+      {
+        cout << "Hello World!";
+        return 0;
+      }
+   HELLO_WORLD_EOF
 
-PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH arm-rpi3-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
+   PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH
+
+   arm-rpi3-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
+   rc=$?
+
 }
 
 RaspbianSrcDir="Raspbian-src"
@@ -735,12 +745,13 @@ function configureRaspbianKernel
    # * General setup
    # *
    # Cross-compiler tool prefix (CROSS_COMPILE) [] (NEW) 
+   # - Set to: arm-rpi3-eabihf-
 
 
-   # Preemption Model  (Just past Linux Guest support)
+   # Preemption Model  (Under Processor Types and features
    #   1. No Forced Preemption (Server) (PREEMPT_NONE) (NEW)
-   # > 2. Voluntary Kernel Preemption (Desktop) (PREEMPT_VOLUNTARY)
-   #   3. Preemptible Kernel (Low-Latency Desktop) (PREEMPT) (NEW)
+   #   2. Voluntary Kernel Preemption (Desktop) (PREEMPT_VOLUNTARY)
+   # > 3. Preemptible Kernel (Low-Latency Desktop) (PREEMPT) (NEW)
    # choice[1-3]: 3
 
    make O=/Volumes/${Volume}/build/kernel nconfig
@@ -819,20 +830,37 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       t)
-          testBuild
-          exit 0
+          printf "${KBLU}Testing toolchain ${ToolchainName}...${KNRM}\n"
+
+          testBuild   # testBuild sets rc
+          if [ ${rc} == '0' ]; then
+             printf "${KGRN}Wahoo ! it works!! ${KNRM}\n"
+             exit 0
+          else
+             printf "${KRED}Boooo ! it failed :-( ${KNRM}\n"
+             exit -1
+          fi
           ;;
           #####################
       I)
-          # Done in first getopt for proper ordert
+          # Done in first getopt for proper order
           ;;
           #####################
       V)
-          # Done in first getopt for proper ordert
+          # Done in first getopt for proper order
           ;;
           #####################
       r)
-          # Done in first getopt for proper ordert
+          # Done in first getopt for proper order
+
+          printf "${KYEL}Checking for cross compiler first ... ${KNRM}"
+          testBuild   # testBuild sets rc
+          if [ ${rc} == '0' ]; then
+             printf "${KGRN}  OK ${KNRM}\n"
+          else
+             printf "${KRED}  failed ${KNRM}\n"
+             exit -1
+          fi
           buildRaspbian=y
           downloadRaspbianKernel
           configureRaspbianKernel
@@ -861,7 +889,7 @@ createCaseSensitiveVolume
 buildBrewDepends
 # fixLibIntl
 
-# The 1.23  archive is busted and does nnot contain CT_Mirror, until
+# The 1.23  archive is busted and does not contain CT_Mirror, until
 # it is fixed, use git Latest
 if [ ${downloadCrosstoolLatest} == 'y' ]; then
    downloadCrossTool_LATEST
@@ -872,5 +900,6 @@ fi
 patchCrosstool
 buildCrosstool
 createToolchain
+
 
 exit 0
