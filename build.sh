@@ -162,6 +162,9 @@ KWHT="\x1B[37m"
 rc='0'
 
 
+# Where to put Raspbian Source
+RaspbianSrcDir="Raspbian-src"
+
 function showHelp()
 {
 cat <<'HELP_EOF'
@@ -678,9 +681,39 @@ function buildToolchain()
    printf "And if all went well, you are done! Go forth and compile.${KNRM}\n"
 }
 
+function downloadElfLibrary
+{
+elfLibURL="https://github.com/WolfgangSt/libelf.git"
+
+   cd "/Volumes/${Volume}/src"
+   printf "${KBLU}Downloading libelf latest... to ${PWD}${KNRM}\n"
+
+   if [ -d "libelf" ]; then
+      printf "${KRED}WARNING ${KNRM}Path already exists libelf${KNRM}\n"
+      printf "        A fetch will be done instead to keep tree up to date{KNRM}\n"
+      printf "\n"
+      cd "libelf"
+      git fetch
+    
+   else
+      git clone --depth=1 ${elfLibURL}
+   fi
+}
+function buildElfLibrary
+{
+    PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH
+    cd "/Volumes/${Volume}/src/libelf"
+    ./configure --prefix=${OutputPath}/${ToolchainName}
+    make
+    make install
+
+    
+    
+}
+
 function testBuild
 {
-   if [ ! -f "/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/arm-rpi3-eabihf-g++" ]; then
+   if [ ! -f "/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/arm-rpi3-eabihf-g++" ]; then
       printf "${KRED}No executable compiler found. ${KNRM}\n"
       rc='-1'
       return
@@ -697,14 +730,13 @@ function testBuild
       }
    HELLO_WORLD_EOF
 
-   PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH
+   PATH=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin:$PATH
 
    arm-rpi3-eabihf-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
    rc=$?
 
 }
 
-RaspbianSrcDir="Raspbian-src"
 function downloadRaspbianKernel
 {
 RaspbianURL="https://github.com/raspberrypi/linux.git"
@@ -733,11 +765,12 @@ function configureRaspbianKernel
 {
    cd "/Volumes/${Volume}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
-   PATH=$BrewHome/bin:$PATH 
+   export PATH=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$PATH
 
    # Cleaning tree
-   printf "${KBLU}Make mrproper in ${PWD}${KNRM}\n"
-   make O=/Volumes/${Volume}/build/kernel mrproper
+   printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
+   # make ARCH=arm O=/Volumes/${Volume}/build/kernel mrproper
+   make ARCH=arm CROSS_COMPILE=arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc bcm2709_defconfig
 
    # Only thing changed were
 
@@ -754,8 +787,8 @@ function configureRaspbianKernel
    # > 3. Preemptible Kernel (Low-Latency Desktop) (PREEMPT) (NEW)
    # choice[1-3]: 3
 
-   make O=/Volumes/${Volume}/build/kernel nconfig
-   make O=/Volumes/${Volume}/build/kernel
+   # make O=/Volumes/${Volume}/build/kernel nconfig
+   # make O=/Volumes/${Volume}/build/kernel
 
 
 }
