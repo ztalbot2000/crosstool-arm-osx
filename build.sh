@@ -145,7 +145,8 @@ ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
 
 
 # Options for Rasbian below here
-BuildRaspbian=n
+BuildRaspbian="n"
+CleanRaspbian="n"
 
 # Fun colour stuff
 KNRM="\x1B[0m"
@@ -187,6 +188,7 @@ cat <<'HELP_EOF'
       -c Brew         - Remove all installed Brew tools.
       -c ct-ng        - Run make clean in crosstool-ng path
       -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
+      -c raspbian     - run make clean in the RaspbianSrcDir.
       -f <configFile> - The name and path of the config file to use.
                         Default is arm-rpi3-eabihf.config
       -b              - Build the cross compiler AFTER building the necessary tools
@@ -223,9 +225,16 @@ function removePathWithCheck()
 
 function cleanBrew()
 {
-   printf "${KBLU}Cleaning our brew tools...${KNRM}\n"
-
    if [ -f "${BrewHome}/.flagToDeleteBrewLater" ]; then
+      printf "${KBLU}Cleaning our brew tools...${KNRM}\n"
+      printf "Checking for ${BrewHome} ... "
+      if [ -d "${BrewHome}" ]; then
+         printf "${KGRN}OK${KNRM}\n"
+      else
+         printf "${KRED}not found${KNRM}\n"
+         exit -1
+      fi
+
       printf "${KBLU}Cleaning brew cache ... ${KNRM}"
       ${BrewHome}/bin/brew cleanup --cache
       printf "${KGRN}  -done${KNRM}\n"
@@ -236,8 +245,35 @@ function cleanBrew()
 function ct-ngMakeClean()
 {
    printf "${KBLU}Cleaning ct-ng...${KNRM}\n"
+   printf "Checking for ${CT_TOP_DIR} ... "
+   if [ -d "${CT_TOP_DIR}" ]; then
+      printf "${KGRN}OK${KNRM}\n"
+   else
+      printf "${KRED}not found${KNRM}\n"
+      exit -1
+   fi
    cd $CT_TOP_DIR
    make clean
+}
+function raspbianClean()
+{
+   printf "${KBLU}Cleaning raspbian (make mrproper)...${KNRM}\n"
+   printf "Checking for /Volumes/${Volume}/${RaspbianSrcDir} ... "
+   if [ -d "/Volumes/${Volume}/${RaspbianSrcDir}" ]; then
+      printf "${KGRN}OK${KNRM}\n"
+   else
+      printf "${KRED}not found${KNRM}\n"
+      exit -1
+   fi
+   printf "Checking for /Volumes/${Volume}/${RaspbianSrcDir}/linux ... "
+   if [ -d "/Volumes/${Volume}/${RaspbianSrcDir}/linux" ]; then
+      printf "${KGRN}OK${KNRM}\n"
+   else
+      printf "${KRED}not found${KNRM}\n"
+      exit -1
+   fi
+   cd /Volumes/${Volume}/$RaspbianSrcDir/linux
+   make mrproper
 }
 function realClean()
 {
@@ -701,10 +737,11 @@ elfLibURL="https://github.com/WolfgangSt/libelf.git"
 }
 function buildElfLibrary
 {
-    PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH
+    export PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH
     cd "/Volumes/${Volume}/src/libelf"
-    ./configure --prefix=${OutputPath}/${ToolchainName}
-    make
+    # ./configure --prefix=${OutputPath}/${ToolchainName}
+    ./configure  ARCH=arm  --prefix=${OutputPath}/${ToolchainName}
+    make ARCH=arm CROSS_COMPILE=arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc
     make install
 
     
@@ -767,11 +804,16 @@ function configureRaspbianKernel
    printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
    export PATH=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$PATH
 
-   # Cleaning tree
    printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
    # make ARCH=arm O=/Volumes/${Volume}/build/kernel mrproper
    make ARCH=arm CROSS_COMPILE=arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc bcm2709_defconfig
 
+   # for bzImage
+   export KERNEL=kernel7
+
+   printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
+   make ARCH=arm CROSS_COMPILE=arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc zImage
+   #make -j4 zImage 
    # Only thing changed were
 
    # *
@@ -799,6 +841,12 @@ OPTSTRING='hc:I:V:O:f:btr'
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
    case $opt in
+      c)
+          if  [ $OPTARG == "raspbian" ]; then
+             CleanRaspbian="y";
+          fi
+          ;;
+          #####################
       I)
           ImageName=$OPTARG
           ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
@@ -815,6 +863,7 @@ while getopts "$OPTSTRING" opt; do
       O)
           OutputPath=$OPTARG
           ;;
+          #####################
       f)
           CrossToolNGConfigFile=$OPTARG
 
@@ -826,6 +875,11 @@ while getopts "$OPTSTRING" opt; do
              exit 1
           fi
           ;;
+          #####################
+      r)
+          buildRaspbian=y
+          ;;
+          #####################
    esac
 done
 
@@ -836,7 +890,7 @@ while getopts "$OPTSTRING" opt; do
    case $opt in
       h)
           showHelp
-          exit 0;
+          exit 0
           ;;
           #####################
       c)
@@ -847,6 +901,14 @@ while getopts "$OPTSTRING" opt; do
           if  [ $OPTARG == "ct-ng" ]; then
              ct-ngMakeClean
              exit 0
+          fi
+          if  [ $OPTARG == "raspbian" ]; then
+             raspbianClean
+             if  [ $BuildRaspbian  == "n" ]; then
+                exit 0
+             fi
+             # so not to do it twicw
+             CleanRaspbian="n"
           fi
           if  [ $OPTARG == "realClean" ]; then
              realClean
@@ -884,7 +946,9 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       r)
-          # Done in first getopt for proper order
+          if  [ $CleanRaspbian == "y" ]; then
+             raspbianClean
+          fi
 
           printf "${KYEL}Checking for cross compiler first ... ${KNRM}"
           testBuild   # testBuild sets rc
@@ -895,6 +959,8 @@ while getopts "$OPTSTRING" opt; do
              exit -1
           fi
           buildRaspbian=y
+          #downloadElfLibrary
+          #buildElfLibrary
           downloadRaspbianKernel
           configureRaspbianKernel
           exit 0
