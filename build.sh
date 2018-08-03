@@ -103,10 +103,11 @@ BrewHome="/Volumes/${Volume}/brew"
 # automake is required to fix a compile issue with gettect
 # coreutils is for sha512sum
 # sha2 is for sha512
+# bison on osx was too old (2.3) and gcc compiler did not like it
 #
 # for Raspbian tools - libelf gcc ncurses
 # for xconfig - QT   (takes hours)
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext"
+BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison"
 
 # This is required so brew can be installed elsewhere
 # Comments are for cut and paste during development
@@ -740,8 +741,8 @@ function buildElfLibrary
     export PATH=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin:$PATH
     cd "/Volumes/${Volume}/src/libelf"
     # ./configure --prefix=${OutputPath}/${ToolchainName}
-    ./configure  ARCH=arm  --prefix=${OutputPath}/${ToolchainName}
-    make ARCH=arm CROSS_COMPILE=arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc
+    ./configure  ARCH=arm  CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/arm-rpi3-eabihf- --prefix=${OutputPath}/${ToolchainName}
+    make ARCH=arm --include-dir=/Volumes/${Volume}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/arm-rpi3-eabihf- 
     make install
 
     
@@ -803,17 +804,27 @@ function configureRaspbianKernel
    cd "/Volumes/${Volume}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
    export PATH=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$PATH
-
-   printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
-   # make ARCH=arm O=/Volumes/${Volume}/build/kernel mrproper
-   make ARCH=arm CROSS_COMPILE=arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc bcm2709_defconfig
+   echo $PATH
 
    # for bzImage
    export KERNEL=kernel7
 
+   export CCPREFIX=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/arm-rpi3-eabihf-
+
+   printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
+   # make ARCH=arm O=/Volumes/${Volume}/build/kernel mrproper 
+   make ARCH=arm CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc --include-dir=/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+
+   # This works, but I do not need it now
+   # make nconfig
+
+
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
-   make ARCH=arm CROSS_COMPILE=arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc zImage
-   #make -j4 zImage 
+   ls /Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include
+   echo /Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include
+   export CFLAGS=-I/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include
+   make  CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc --include-dir=/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include -I /Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include zImage
+   # make -j4 zImage 
    # Only thing changed were
 
    # *
