@@ -210,6 +210,7 @@ cat <<'HELP_EOF'
                         The actual result is based on what is in your
                            -f <configFile>
                         The product of which would be: arm-rpi3-eabihf-gcc ...
+     -P               - Just Print the PATH variableH
      -h               - This menu.
      -help
      "none"           - Go for it all if no options given. it will always try to 
@@ -751,7 +752,7 @@ function buildElfLibrary
     cd "/Volumes/${Volume}/src/libelf"
     # ./configure --prefix=${OutputPath}/${ToolchainName}
     ./configure  ARCH=arm  CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/arm-rpi3-eabihf- --prefix=${OutputPath}/${ToolchainName}
-    make ARCH=arm --include-dir=/Volumes/${Volume}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/arm-rpi3-eabihf- 
+    make ARCH=arm --include-dir=/Volumes/${Volume}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/${ToolchainName}- 
     make install
 
     
@@ -859,7 +860,7 @@ function configureRaspbianKernel
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
-OPTSTRING='h?c:I:V:O:f:btrT:'
+OPTSTRING='h?P?c:I:V:O:f:btrT:'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -901,7 +902,10 @@ while getopts "$OPTSTRING" opt; do
           #####################
       b)
           # Check next positional parameter
+          # Why would checking for an unbound variable cause an unbound variable?
+          set +u
           nextOpt=${!OPTIND}
+          set -u
           # existing or starting with dash?
           if [[ -n $nextOpt && $nextOpt != -* ]]; then
              OPTIND=$((OPTIND + 1))
@@ -959,7 +963,10 @@ while getopts "$OPTSTRING" opt; do
           #####################
       b)
           # Check next positional parameter
+          # Why would checking for an unbound variable cause an unbound variable?
+          set +u
           nextOpt=${!OPTIND}
+          set -u
           # existing or starting with dash? 
           if [[ -n $nextOpt && $nextOpt != -* ]]; then
              OPTIND=$((OPTIND + 1))
@@ -1017,6 +1024,15 @@ while getopts "$OPTSTRING" opt; do
           #####################
        T)
           # Done in first getopt for proper order
+          ;;
+          #####################
+       P)
+          # Done in first getopt for proper order
+           PATH=/Volumee/${Volume}/${OutputPath}${ToolchainName}/bin:${BREW_PREFIX}/bin:${BREW_PREFIX}/opt/bison:${PATH}
+          printf "${KNRM}PATH=${PATH}${KNRM}\n"
+          printf "./configure  ARCH=arm  CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/${ToolchainName}- --prefix=${OutputPath}/${ToolchainName}\n"
+    printf "make ARCH=arm --include-dir=/Volumes/${Volume}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/${ToolchainName}-\n"
+          exit 0
           ;;
           #####################
       \?)
