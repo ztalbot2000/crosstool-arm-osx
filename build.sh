@@ -96,6 +96,7 @@ OutputPath='x-tools'
 
 # Where brew will be placed. An existing brew cannot be used because of
 # interferences with macports or fink.
+# We will also install ct-ng there
 BrewHome="/Volumes/${Volume}/brew"
 
 # Binutils is for objcopy, objdump, ranlib, readelf
@@ -142,8 +143,7 @@ CrossToolVersion="crosstool-ng-1.23.0"
 CrossToolSourceDir="crosstool-ng-src"
 
 # See note just above why this is duplicated
-CT_TOP_DIR="/Volumes/CrossToolNG/crosstool-ng-src"
-CT_TOP_DIR="/Volumes/${Volume}/${CrossToolSourceDir}" 
+CT_TOP_DIR="/Volumes/${Volume}"
 
 ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
 
@@ -198,13 +198,13 @@ cat <<'HELP_EOF'
      -c raspbian      - run make clean in the RaspbianSrcDir.
      -f <configFile>  - The name and path of the config file to use.
                         Default is arm-rpi3-eabihf.config
-     -b <last_step+>  - Build the cross compiler AFTER building the necessary tools
+     -b               - Build the cross compiler AFTER building the necessary tools
                         and you have defined the crosstool-ng .config file.
-                        * If last_step+ is specified ct-ng is executed with LAST_SUCCESSFUL_STETP_NAME+ 
+     -b <last_step+>    * If last_step+ is specified ct-ng is executed with LAST_SUCCESSFUL_STETP_NAME+ 
                         This is accomplished when CT_DEBUG=y and CT_SAVE_STEPS=y
-                        * This could also be list-steps to show steps available. 
+     -b list-steps      * This could also be list-steps to show steps available. 
+     -b raspbian>     - Download and build Raspbian.
      -t               - After the build, run a Hello World test on it.
-     -r               - Download and build Raspbian.
      -T <Toolchain>   - The ToolchainName created.
                         The default used is: arm-rpi3-eabihf
                         The actual result is based on what is in your
@@ -262,14 +262,15 @@ function cleanBrew()
 function ct-ngMakeClean()
 {
    printf "${KBLU}Cleaning ct-ng...${KNRM}\n"
-   printf "Checking for ${CT_TOP_DIR} ... "
-   if [ -d "${CT_TOP_DIR}" ]; then
+   ctDir="/Volumes/${Volume}/${CrossToolSourceDir}"
+   printf "Checking for ${ctDir}\n"
+   if [ -d "${ctDir}" ]; then
       printf "${KGRN}OK${KNRM}\n"
    else
       printf "${KRED}not found${KNRM}\n"
       exit -1
    fi
-   cd $CT_TOP_DIR
+   cd "${ctDir}"
    make clean
 }
 function raspbianClean()
@@ -488,7 +489,7 @@ function downloadCrossTool()
       curl -L -o ${CrossToolArchive} $CrossToolUrl
    fi
 
-   if [ -d $CT_TOP_DIR ]; then
+   if [ -d "${CrossToolSourceDir}" ]; then
       printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
       printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
    else
@@ -504,21 +505,26 @@ function downloadCrossTool()
 
 function downloadCrossTool_LATEST()
 {  
+   if [ -x "${CT_TOP_DIR}/ctng/bin/ct-ng" ]; then
+      printf "${KGRN}    - Found existing ct-ng. Using it instead${KNRM}\n"
+      return
+   fi
+
    cd /Volumes/${Volume}
    printf "${KBLU}Downloading crosstool-ng... to ${PWD}${KNRM}\n"
 
-   if [ -d $CT_TOP_DIR ]; then 
-      printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
+   if [ -d "${CrossToolSourceDir}" ]; then 
+      printf "   ${KRED}WARNING${KNRM} - ${CrossToolSourceDir} exists and will be used.\n"
       printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
       return
    fi
 
    CrossToolUrl="https://github.com/crosstool-ng/crosstool-ng.git"
-   git clone ${CrossToolUrl}  ${CT_TOP_DIR}
+   git clone ${CrossToolUrl}  ${CrossToolSourceDir}
 
    # We need to creat the configure tool
    printf "${KBLU}Running  crosstool bootstrap... to ${PWD}${KNRM}\n"
-   cd ${CT_TOP_DIR}
+   cd "${CrossToolSourceDir}"
 
    # crosstool-ng-1.23.0 still has CT_Mirror
    # git checkout -b $CrossToolVersion
@@ -544,7 +550,12 @@ function patchConfigFileForOutputPath()
 
 function patchCrosstool()
 {
-    cd ${CT_TOP_DIR}
+    if [ -x "${CT_TOP_DIR}/ctng/bin/ct-ng" ]; then
+      printf "${KGRN}    - Found existing ct-ng. Using it instead${KNRM}\n"
+      return
+    fi
+
+    cd "/Volumes/${Volume}/${CrossToolSourceDir}"
     printf "${KBLU}Patching crosstool-ng... in ${PWD}${KNRM}\n"
 
     printf "Patching crosstool-ng...${KNRM}\n"
@@ -558,13 +569,13 @@ function patchCrosstool()
 
 function buildCrosstool()
 {
-   cd ${CT_TOP_DIR}
-   printf "${KBLU}Configuring crosstool-ng... in ${PWD}${KNRM}\n"
-
-   if [ -x ct-ng ]; then
+   if [ -x "${CT_TOP_DIR}/ctng/bin/ct-ng" ]; then
       printf "${KGRN}    - Found existing ct-ng. Using it instead${KNRM}\n"
       return
    fi
+   cd "/Volumes/${Volume}/${CrossToolSourceDir}"
+   printf "${KBLU}Configuring crosstool-ng... in ${PWD}${KNRM}\n"
+
 
    # It is strange that gettext is put in opt
    gettextDir=${BrewHome}/opt/gettext
@@ -578,7 +589,7 @@ function buildCrosstool()
    # CPPFLAGS is required too to fix libintl.h not found
    LDFLAGS="  -L/Volumes/CrossToolNG/brew/opt/gettext/lib -lintl " \
    CPPFLAGS=" -I/Volumes/CrossToolNG/brew/opt/gettext/include" \
-   ./configure  --with-libintl-prefix=$gettextDir --enable-local
+   ./configure  --with-libintl-prefix=$gettextDir --prefix=${CT_TOP_DIR}/ctng
 
    # These are not needed by crosstool-ng version 1.23.0
    # 
@@ -597,6 +608,8 @@ function buildCrosstool()
    printf "${KBLU}Compiling crosstool-ng... in ${PWD}${KNRM}\n"
 
    make
+   printf "${KBLU}Installing  crosstool-ng... in ${PWD}${KNRM}\n"
+   make install
    printf "${KGRN}Compilation of ct-ng is Complete ${KNRM}\n"
 }
 
@@ -666,11 +679,13 @@ CONFIG_EOF
    # Give the user a chance to digest this
    sleep 5
 
+   export PATH=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:${CT_TOP_DIR}/ctng/bin:$PATH 
+
    # Use 'menuconfig' target for the fine tuning.
 
    # It seems ct-ng menuconfig dies without some kind of target
    export CT_TARGET="changeMe"
-   ./ct-ng menuconfig
+   ct-ng menuconfig
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
@@ -685,7 +700,7 @@ CONFIG_EOF
    printf "${KBLU}or${KNRM}\n"
    printf "PATH=$PATH${KNRM}\n"
    printf "cd ${CT_TOP_DIR}${KNRM}\n"
-   printf "./ct-ng build${KNRM}\n"
+   printf "ct-ng build${KNRM}\n"
    
 
 }
@@ -719,12 +734,12 @@ function buildToolchain()
    else
       printf "${KGRN}   -Done${KNRM}\n"
    fi
-   export PATH=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$PATH 
+   export PATH=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:${CT_TOP_DIR}/ctng/bin:$PATH 
 
    if [ "$1" == "list-steps" ]; then
-      ./ct-ng "$1"
+      ct-ng "$1"
    else
-      ./ct-ng "$1"
+      ct-ng "$1"
       printf "And if all went well, you are done! Go forth and compile.${KNRM}\n"
    fi
 }
@@ -751,12 +766,35 @@ function buildElfLibrary
 {
     cd "/Volumes/${Volume}/src/libelf"
     # ./configure --prefix=${OutputPath}/${ToolchainName}
-    ./configure  ARCH=arm  CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/arm-rpi3-eabihf- --prefix=${OutputPath}/${ToolchainName}
+    ./configure  ARCH=arm  CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/${ToolchainName}- --prefix=${OutputPath}/${ToolchainName}
     make ARCH=arm --include-dir=/Volumes/${Volume}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/${ToolchainName}- 
     make install
 
     
     
+}
+function downloadAndBuildElfUtilsLibrary
+{
+elfUtilsURL=" https://sourceware.org/ftp/elfutils/0.170/elfutils-0.170.tar.bz2"
+   
+   cd "/Volumes/${Volume}/src"
+   printf "${KBLU}Downloading elfutils-0.170 latest... to ${PWD}${KNRM}\n"
+   
+   if [ -d "elfutils-0.170" ]; then
+      printf "${KRED}WARNING ${KNRM}Path already exists libelf${KNRM}\n"
+      printf "        Download ignored${KNRM}\n"
+      printf "\n"
+   else
+      curl -Lsf ${elfUtilsURL} | tar -xz
+   fi
+
+   cd "elfutils-0.170"
+    # ./configure --prefix=${OutputPath}/${ToolchainName}
+    # CC=${ToolchainName}-gcc --include-dir=/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include  ./configure  ARCH=arm   --prefix="/Volumes/CrosstoolNG/${OutputPath}/${ToolchainName}"
+    CC=${ToolchainName}-gcc ./configure  --host=x86_64    --prefix="/Volumes/CrosstoolNG/${OutputPath}/${ToolchainName}"
+exit
+    make ARCH=arm --include-dir=/Volumes/${Volume}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/${ToolchainName}/bin/${ToolchainName}-
+    make install
 }
 
 function testBuild
@@ -821,11 +859,11 @@ function configureRaspbianKernel
    # for bzImage
    export KERNEL=kernel7
 
-   export CCPREFIX=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/arm-rpi3-eabihf-
+   export CCPREFIX=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/${ToolchainName}-
 
    printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
    # make ARCH=arm O=/Volumes/${Volume}/build/kernel mrproper 
-   make ARCH=arm CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc --include-dir=/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+   make ARCH=arm CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/${ToolchainName} CC=${ToolchainName}-gcc --include-dir=/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
    # This works, but I do not need it now
    # make nconfig
@@ -835,7 +873,7 @@ function configureRaspbianKernel
    ls /Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include
    echo /Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include
    export CFLAGS=-I/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include
-   make  CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/arm-rpi3-eabihf- CC=arm-rpi3-eabihf-gcc --include-dir=/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include -I /Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include zImage
+   make  CROSS_COMPILE=/Volumes/${Volume}/$OutputPath/$ToolchainName/bin/${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=/Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include -I /Volumes/${Volume}/$OutputPath/$ToolchainName/$ToolchainName/include zImage
    # make -j4 zImage 
    # Only thing changed were
 
@@ -860,7 +898,7 @@ function configureRaspbianKernel
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
-OPTSTRING='h?P?c:I:V:O:f:btrT:'
+OPTSTRING='h?P?c:I:V:O:f:btT:'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -909,17 +947,19 @@ while getopts "$OPTSTRING" opt; do
           # existing or starting with dash?
           if [[ -n $nextOpt && $nextOpt != -* ]]; then
              OPTIND=$((OPTIND + 1))
+
+             if [ ${nextOpt} == "raspbian" ]; then
+                BuildRaspbianOpt=y
+             fi
+          else
+             BuildToolchainOpt="y"
           fi
 
-          BuildToolchainOpt="y"
-          ;;
-          #####################
-      r)
-          BuildRaspbianOpt=y
           ;;
           #####################
        T)
           ToolchainName=$OPTARG
+          CrossToolNGConfigFile="${ToolchainName}.config"
           ;;
           #####################
    esac
@@ -970,12 +1010,39 @@ while getopts "$OPTSTRING" opt; do
           # existing or starting with dash? 
           if [[ -n $nextOpt && $nextOpt != -* ]]; then
              OPTIND=$((OPTIND + 1))
-             buildToolchain $nextOpt
-             echo "buildToolchain $nextOpt"
+             # Any other options than raspbian, just pass
+             # to ct-ng
+             if [ $nextOpt != "raspbian" ]; then
+                buildToolchain $nextOpt
+             fi
           else
+             # minus gcc alone is build the cross compiler
              buildToolchain "build"
-             echo "buildToolchain build"
           fi
+
+          # Check to continue and build Raspbian
+          if [ $BuildRaspbianOpt == "n" ]; then
+             exit 0
+          fi
+
+          if  [ $CleanRaspbianOpt == "y" ]; then
+             raspbianClean
+          fi
+
+          printf "${KYEL}Checking for cross compiler first ... ${KNRM}"
+          testBuild   # testBuild sets rc
+          if [ ${rc} == '0' ]; then
+             printf "${KGRN}  OK ${KNRM}\n"
+          else
+             printf "${KRED}  failed ${KNRM}\n"
+             exit -1
+          fi
+          BuildRaspbianOpt=y
+          #downloadElfLibrary
+          #buildElfLibrary
+          downloadAndBuildElfUtilsLibrary
+          downloadRaspbianKernel
+          configureRaspbianKernel
 
           exit 0
           ;;
@@ -1001,32 +1068,11 @@ while getopts "$OPTSTRING" opt; do
           # Done in first getopt for proper order
           ;;
           #####################
-      r)
-          if  [ $CleanRaspbianOpt == "y" ]; then
-             raspbianClean
-          fi
-
-          printf "${KYEL}Checking for cross compiler first ... ${KNRM}"
-          testBuild   # testBuild sets rc
-          if [ ${rc} == '0' ]; then
-             printf "${KGRN}  OK ${KNRM}\n"
-          else
-             printf "${KRED}  failed ${KNRM}\n"
-             exit -1
-          fi
-          BuildRaspbianOpt=y
-          #downloadElfLibrary
-          #buildElfLibrary
-          downloadRaspbianKernel
-          configureRaspbianKernel
-          exit 0
-          ;;
-          #####################
-       T)
+      T)
           # Done in first getopt for proper order
           ;;
           #####################
-       P)
+      P)
           # Done in first getopt for proper order
            PATH=/Volumee/${Volume}/${OutputPath}${ToolchainName}/bin:${BREW_PREFIX}/bin:${BREW_PREFIX}/opt/bison:${PATH}
           printf "${KNRM}PATH=${PATH}${KNRM}\n"
