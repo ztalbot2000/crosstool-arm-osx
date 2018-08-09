@@ -88,11 +88,16 @@ ToolchainName='arm-rpi3-eabihf'
 Volume='CrossToolNG'
 VolumeBase="${Volume}Base"
 
+# Downloading the sources all the time is painful, especially when one site is down
+# There is no option for this because the ct-ng config file must also be
+# changed
+TarBallSources="/Volumes/${VolumeBase}/sources"
+
 # The compiler will be placed in /Volumes/<Volume>/x-tools
-# It can be overriden with -O <OutputPath>.  Do this instead as 'x-tools' is
+# It can be overriden with -O <OutputDir>.  Do this instead as 'x-tools' is
 # a key word in the .config file with this tool that will automatically get
-# changed with the -O <OutputPath> option
-OutputPath='x-tools'
+# changed with the -O <OutputDir> option
+OutputDir='x-tools'
 
 
 
@@ -101,6 +106,7 @@ OutputPath='x-tools'
 # interferences with macports or fink.
 # We will also install ct-ng there
 BrewHome="/Volumes/${VolumeBase}/brew"
+
 
 # Binutils is for objcopy, objdump, ranlib, readelf
 # sed, gawk libtool bash, grep are direct requirements
@@ -122,9 +128,9 @@ BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man aut
 # export Volume=BLANK
 # export BREW_PREFIX=/Volumes/${VolumeBase}/brew
 # export PKG_CONFIG_PATH=${BREW_PREFIX}
-# export OutputPath='x-tools'
+# export OutputDir='x-tools'
 # ToolchainName='arm-rpi3-eabihf'
-# PATH=/Volumee/${Volume}/${OutputPath}/${ToolchainName}/bin:${BREW_PREFIX}/bin:${BREW_PREFIX}/opt/bison:${PATH}
+#  export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 # EXTRA_CFLAGS=-I${PWD}/arch/arm/include/asm
 # export CCPREFIX=/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/bin/arm-rpi3-eabihf-
 # ARCH=arm CROSS_COMPILE=${CCPREFIX} make O=/Volumes/${Volume}/build/kernel
@@ -191,11 +197,11 @@ cat <<'HELP_EOF'
                           Note: To do this the .config file is changed automatically
                                 from CrosstoolNG  to <Volume>
 
-     -O <OutputPath>  - Instead of /Volumes/<Volume>/x-tools
+     -O <OutputDir>  - Instead of /Volumes/<Volume>/x-tools
                         use
-                           /Volumes/<Volume>/<OutputPath>
+                           /Volumes/<Volume>/<OutputDir>
                         Note: To do this the .config file is changed automatically
-                              from x-tools  to <OutputPath>
+                              from x-tools  to <OutputDir>
 
      -c Brew          - Remove all installed Brew tools.
      -c ct-ng         - Run make clean in crosstool-ng path
@@ -349,6 +355,19 @@ function createCaseSensitiveVolumeBase()
    hdiutil mount ${ImageNameExtBase}
 }
 
+function createTarBallSourcesDir()
+{
+    printf "${KBLU}Checking for saved tarballs directory ${KNRM}${TarBallSources}...${KNRM}"
+    if [ -d "${TarBallSources}" ]; then
+       printf "${KGRN}found${KNRM}\n"
+       return
+    fi
+    printf "${KNRM}Creating ${TarBallSources}...${KNRM}"
+    mkdir "${TarBallSources}"
+    printf "${KGRN}done${KNRM}\n"
+    return
+}
+
 # This is where the cross compiler and Raspbian will go
 function createCaseSensitiveVolume()
 {
@@ -400,7 +419,7 @@ function buildBrewDepends()
    else
       printf "   - Using existing Brew installation in ${BrewHome}${KNRM}\n"
    fi
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$PATH 
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    printf "${KBLU}Updating HomeBrew tools...${KNRM}\n"
    printf "${KRED}Ignore the ERROR: could not link${KNRM}\n"
@@ -416,7 +435,8 @@ function buildBrewDepends()
    set +e
 
    # $BrewHome/bin/brew install --with-default-names $BrewTools && true
-   $BrewHome/bin/brew install $BrewTools --with-real-names && true
+   # $BrewHome/bin/brew install $BrewTools --with-real-names && true
+   $BrewHome/bin/brew install $BrewTools --with-default-names && true
 
    # change to Exit immediately if a command exits with a non-zero status.
    set -e
@@ -446,6 +466,54 @@ function buildBrewDepends()
    if [ ! -f $BrewHome/bin/gsha256sum ]; then
       printf "${KNRM}\nLinking gsha256sum to sha256sum${KNRM}\n"
       ln -s $BrewHome/bin/gsha256sum $BrewHome/bin/sha256sum
+   else
+      printf "${KGRN}found${KNRM}\n"
+   fi
+
+#  printf "${KBLU}Checking for $BrewHome/bin/readelf ...${KNRM}"
+#  if [ ! -f $BrewHome/bin/readelf ]; then
+#     printf "${KNRM}\nLinking greadelf to readelf${KNRM}\n"
+#     ln -s $BrewHome/bin/greadelf $BrewHome/bin/readelf
+#  else
+#     printf "${KGRN}found${KNRM}\n"
+#  fi
+
+#  printf "${KBLU}Checking for $BrewHome/bin/ranlib ...${KNRM}"
+#  if [ ! -f $BrewHome/bin/ranlib ]; then
+#     printf "${KNRM}\nLinking granlib to ranlib${KNRM}\n"
+#     ln -s $BrewHome/bin/granlib $BrewHome/bin/ranlib
+#  else
+#     printf "${KGRN}found${KNRM}\n"
+#  fi
+#
+#  printf "${KBLU}Checking for $BrewHome/bin/objcopy ...${KNRM}"
+#  if [ ! -f $BrewHome/bin/objcopy ]; then
+#     printf "${KNRM}\nLinking gobjcopy to objcopy${KNRM}\n"
+#     ln -s $BrewHome/bin/gobjcopy $BrewHome/bin/objcopy
+#  else
+#     printf "${KGRN}found${KNRM}\n"
+#  fi
+#
+#  printf "${KBLU}Checking for $BrewHome/bin/objdump ...${KNRM}"
+#  if [ ! -f $BrewHome/bin/objdump ]; then
+#     printf "${KNRM}\nLinking gobjdump to objdump${KNRM}\n"
+#     ln -s $BrewHome/bin/gobjdump $BrewHome/bin/objdump
+#  else
+#     printf "${KGRN}found${KNRM}\n"
+#  fi
+#
+#  printf "${KBLU}Checking for $BrewHome/bin/sed ...${KNRM}"
+#  if [ ! -f $BrewHome/bin/sed ]; then
+#     printf "${KNRM}\nLinking gsed to sed${KNRM}\n"
+#     ln -s $BrewHome/bin/gsed $BrewHome/bin/sed
+#  else
+#     printf "${KGRN}found${KNRM}\n"
+#  fi
+
+   printf "${KBLU}Checking for $BrewHome/bin/grep ...${KNRM}"
+   if [ ! -f $BrewHome/bin/grep ]; then
+      printf "${KNRM}\nLinking ggrep to grep${KNRM}\n"
+      ln -s $BrewHome/bin/ggrep $BrewHome/bin/grep
    else
       printf "${KGRN}found${KNRM}\n"
    fi
@@ -549,7 +617,7 @@ function downloadCrossTool()
 function downloadCrossTool_LATEST()
 {  
    if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
-      printf "${KGRN}    - Found existing ct-ng. Using it instead${KNRM}\n"
+      printf "${KGRN}    - found existing ct-ng. Using it instead${KNRM}\n"
       return
    fi
 
@@ -582,11 +650,11 @@ function patchConfigFileForVolume()
        sed -i .bak -e's/CrossToolNG/'$Volume'/g' .config
     fi
 }
-function patchConfigFileForOutputPath()
+function patchConfigFileForOutputDir()
 {
     printf "${KBLU}Patching .config file for 'x-tools' in ${PWD}${KNRM}\n"
     if [ -f ".config" ]; then
-       sed -i .bak2 -e's/x-tools/'$OutputPath'/g' .config
+       sed -i .bak2 -e's/x-tools/'$OutputDir'/g' .config
     fi
 }
 
@@ -594,7 +662,7 @@ function patchConfigFileForOutputPath()
 function patchCrosstool()
 {
     if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
-      printf "${KGRN}    - Found existing ct-ng. Using it instead${KNRM}\n"
+      printf "${KGRN}    - found existing ct-ng. Using it instead${KNRM}\n"
       return
     fi
 
@@ -613,7 +681,7 @@ function patchCrosstool()
 function buildCrosstool()
 {
    if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
-      printf "${KGRN}    - Found existing ct-ng. Using it instead${KNRM}\n"
+      printf "${KGRN}    - found existing ct-ng. Using it instead${KNRM}\n"
       return
    fi
    cd "/Volumes/${VolumeBase}/${CrossToolSourceDir}"
@@ -640,7 +708,7 @@ function buildCrosstool()
    #        OBJDUMP=$BrewHome/bin/objdump         \
    #        RANLIB=$BrewHome/bin/ranlib           \
    #        READELF=$BrewHome/bin/readelf         \
-   #        LIBTOOL=$BrewHome/bin/libtool         \
+   #        LIBTOOL=$BrewHome/obj/libtool         \
    #        LIBTOOLIZE=$BrewHome/bin/libtoolize   \
    #        SED=$BrewHome/bin/sed                 \
    #        AWK=$BrewHome/bin/gawk                \
@@ -679,10 +747,10 @@ function createToolchain()
       else
          patchConfigFileForVolume
       fi
-      if [ "$OutputPath" == 'x-tools' ];then
+      if [ "$OutputDir" == 'x-tools' ];then
          printf "${KBLU}.config file not being patched as -O was not specified${KNRM}\n"
       else
-         patchConfigFileForOutputPath
+         patchConfigFileForOutputDir
       fi
    else
       printf "   - None found${KNRM}\n"
@@ -705,7 +773,7 @@ https://gist.github.com/h0tw1r3/19e48ae3021122c2a2ebe691d920a9ca
 - Paths and misc options
     - Check "Try features marked as EXPERIMENTAL"
     - Set "Prefix directory" to the real values of:
-        /Volumes/$Volume/$OutputPath/${CT_TARGET}
+        /Volumes/$Volume/$OutputDir/${CT_TARGET}
 
 - Target options
     By default this script builds the configuration for arm-rpi3-eabihf as this is my focus; However, crosstool-ng can build so many different types of cross compilers.  If you are interested in them, check out the samples with:
@@ -722,7 +790,7 @@ CONFIG_EOF
    # Give the user a chance to digest this
    sleep 5
 
-   export PATH=${CT_TOP_DIR}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    # Use 'menuconfig' target for the fine tuning.
 
@@ -736,8 +804,8 @@ CONFIG_EOF
    if [ $Volume != 'CrossToolNG' ]; then
       printf "${KNRM} -V ${Volume}${KNRM}"
    fi
-   if [ $OutputPath != 'x-tools' ]; then
-      printf "${KNRM} -O ${OutputPath}${KNRM}"
+   if [ $OutputDir != 'x-tools' ]; then
+      printf "${KNRM} -O ${OutputDir}${KNRM}"
    fi
    printf "${KNRM} -b${KNRM}\n"
    printf "${KBLU}or${KNRM}\n"
@@ -775,7 +843,7 @@ function buildToolchain()
    else
       printf "${KGRN}   -Done${KNRM}\n"
    fi
-   export PATH=${CT_TOP_DIR}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    if [ "$1" == "list-steps" ]; then
       ct-ng "$1"
@@ -784,6 +852,64 @@ function buildToolchain()
       printf "And if all went well, you are done! Go forth and compile.${KNRM}\n"
    fi
 }
+
+function buildLibtool
+{   
+    cd "${CT_TOP_DIR}/src/libelf"
+    # ./configure --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}
+    ./configure  -prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}  --host=${ToolchainName}
+    make
+    make installkkkkkkkkkk
+}
+
+function downloadAndBuildzlib
+{
+   zlibFile="zlib-1.2.11.tar.gz"
+   zlibURL="https://zlib.net/zlib-1.2.11.tar.gz"
+
+   printf "${KBLU}Checking for zlib.h and libz.a ${KNRM} ... ${KNRM}"
+   if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/zlib.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      return
+   fi
+   printf "${KYEL}not found${KNRM}\n"
+
+   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/zlib-1.2.11 ...${KNRM}"
+   if [ -d "${CT_TOP_DIR}/src/zlib-1.2.11" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      printf "${KNRM}Using existing zlib source${KNRM}\n"
+   else
+      printf "${KYEL}not found${KNRM}\n"
+      cd "${CT_TOP_DIR}/src/"
+      printf "${KBLU}Checking for saved ${KNRM}${zlibFile} ... ${KNRM}"
+      if [ -f "${TarBallSources}/${zlibFile}" ]; then
+         printf "${KGRN}found${KNRM}\n"
+      else
+         printf "${KYEL}not found${KNRM}\n"
+         printf "${KBLU}Downloading ${KNRM}${zlibFile} ... ${KNRM}"
+         curl -Lsf "${zlibURL}" -o "${TarBallSources}/${zlibFile}"
+         printf "${KGRN}done${KNRM}\n"
+      fi
+      printf "${KBLU}Copying ${zlibFile} to working directory ${KNRM}"
+      cp "${TarBallSources}/${zlibFile}" "${CT_TOP_DIR}/src/."
+      printf "${KGRN}done${KNRM}\n"
+      printf "${KBLU}Decompressing ${KNRM}${zlibFile} ... ${KNRM}"
+      cd "${CT_TOP_DIR}/src/"
+      tar -xzf "${zlibFile}"
+      printf "${KGRN}done${KNRM}\n"
+   fi
+
+    cd "${CT_TOP_DIR}/src/zlib-1.2.11"
+    CHOST=${ToolchainName} ./configure \
+          --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
+          --static \
+          --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
+          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
+
+    make
+    make install
+}
+
 
 function downloadElfLibrary
 {
@@ -806,41 +932,64 @@ elfLibURL="https://github.com/WolfgangSt/libelf.git"
 function buildElfLibrary
 {
     cd "${CT_TOP_DIR}/src/libelf"
-    # ./configure --prefix=${CT_TOP_DIR}/${OutputPath}/${ToolchainName}
-    ./configure  ARCH=arm  CROSS_COMPILE=${CT_TOP_DIR}/$OutputPath/${ToolchainName}/bin/${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputPath}/${ToolchainName}
-    make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputPath/${ToolchainName}/bin/${ToolchainName}- 
+    # ./configure --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}
+    ./configure  ARCH=arm  CROSS_COMPILE=${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} CFLAGS=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/include
+    make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}- 
     make install
-
-    
-    
 }
+
 function downloadAndBuildElfUtilsLibrary
 {
-elfUtilsURL=" https://sourceware.org/ftp/elfutils/0.170/elfutils-0.170.tar.bz2"
-   
-   cd "${CT_TOP_DIR}/src"
-   printf "${KBLU}Downloading elfutils-0.170 latest... to ${PWD}${KNRM}\n"
-   
-   if [ -d "elfutils-0.170" ]; then
-      printf "${KRED}WARNING ${KNRM}Path already exists libelf${KNRM}\n"
-      printf "        Download ignored${KNRM}\n"
-      printf "\n"
+   elfUtilsFile="elfutils-0.170.tar.bz2"
+   elfUtilsURL=" https://sourceware.org/ftp/elfutils/0.170/elfutils-0.170.tar.bz2"
+
+   printf "${KBLU}Checking for libelf.h and libz.a ${KNRM} ... ${KNRM}"
+   if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      return
+   fi
+   printf "${KYEL}not found${KNRM}\n"
+
+   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/elfutils-0.17 ...${KNRM}"
+   if [ -d "${CT_TOP_DIR}/src/elfutils-0.170" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      printf "${KNRM}Using existing elfutils source${KNRM}\n"
    else
-      curl -Lsf ${elfUtilsURL} | tar -xz
+      printf "${KYEL}not found${KNRM}\n"
+      cd "${CT_TOP_DIR}/src/"
+      printf "${KBLU}Checking for saved ${KNRM}${elfUtilsFile} ... ${KNRM}"
+      if [ -f "${TarBallSources}/${elfUtilsFile}" ]; then
+         printf "${KGRN}found${KNRM}\n"
+      else
+         printf "${KYEL}not found${KNRM}\n"
+         printf "${KBLU}Downloading ${KNRM}${elfUtilsFile} ... ${KNRM}"
+         echo curl -Lsf "${elfUtilsURL}" -o "${TarBallSources}/${elfUtilsFile}"
+         printf "${KGRN}done${KNRM}\n"
+      fi
+      printf "${KBLU}Copying ${elfUtilsFile} to working directory ${KNRM}"
+      cp "${TarBallSources}/${elfUtilsFile}" "${CT_TOP_DIR}/src/."
+      printf "${KGRN}done${KNRM}\n"
+      printf "${KBLU}Decompressing ${KNRM}${elfUtilsFile} ... ${KNRM}"
+      cd "${CT_TOP_DIR}/src/"
+      tar -xzf "${elfUtilsFile}"
+      printf "${KGRN}done${KNRM}\n"
    fi
 
-   cd "elfutils-0.170"
-    # ./configure --prefix=${CT_TOP_DIR}/${OutputPath}/${ToolchainName}
-    # CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputPath/$ToolchainName/$ToolchainName/include  ./configure  ARCH=arm   --prefix="${CT_TOP_DIR}/${OutputPath}/${ToolchainName}"
-    CC=${ToolchainName}-gcc ./configure  --host=x86_64    --prefix="${CT_TOP_DIR}/${OutputPath}/${ToolchainName}"
+    cd "${CT_TOP_DIR}/src/elfutils-0.170"
+     CHOST=${ToolchainName} ./configure \
+          --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
+          --host=${ToolchainName} \
+          --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
+          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
+
+    make
 exit
-    make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputPath/${ToolchainName}/bin/${ToolchainName}-
     make install
 }
 
 function testBuild
 {
-   gpp="${CT_TOP_DIR}/$OutputPath/$ToolchainName/bin/${ToolchainName}-g++"
+   gpp="${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}-g++"
    if [ ! -f "${gpp}" ]; then
       printf "${KRED}No executable compiler found. ${KNRM}\n"
       printf "${KRED}${gpp}${KNRM}\n"
@@ -859,7 +1008,7 @@ function testBuild
       }
    HELLO_WORLD_EOF
 
-   PATH=${CT_TOP_DIR}/$OutputPath/$ToolchainName/bin:$PATH
+   PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$PATH
 
    ${ToolchainName}-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
    rc=$?
@@ -894,27 +1043,27 @@ function configureRaspbianKernel
 {
    cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
-   export PATH=/${CT_TOP_DIR}/$OutputPath/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
    echo $PATH
 
    # for bzImage
    export KERNEL=kernel7
 
-   export CCPREFIX=${CT_TOP_DIR}/$OutputPath/$ToolchainName/bin/${ToolchainName}-
+   export CCPREFIX=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}-
 
    printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
    # make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
-   make ARCH=arm CROSS_COMPILE=${CT_TOP_DIR}/$OutputPath/$ToolchainName/bin/${ToolchainName} CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputPath/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+   make ARCH=arm CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName} CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
    # This works, but I do not need it now
    # make nconfig
 
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
-   ls ${CT_TOP_DIR}/$OutputPath/$ToolchainName/$ToolchainName/include
-   echo ${CT_TOP_DIR}/$OutputPath/$ToolchainName/$ToolchainName/include
-   export CFLAGS=-I${CT_TOP_DIR}/$OutputPath/$ToolchainName/$ToolchainName/include
-   make  CROSS_COMPILE=${CT_TOP_DIR}/$OutputPath/$ToolchainName/bin/${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputPath/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputPath/$ToolchainName/$ToolchainName/include zImage
+   ls ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
+   echo ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
+   export CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
+   make  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage
    # make -j4 zImage 
    # Only thing changed were
 
@@ -945,7 +1094,7 @@ OPTSTRING='h?P?c:I:V:O:f:btT:'
 while getopts "$OPTSTRING" opt; do
    case $opt in
       c)
-          if  [ $OPTARG == "raspbian" ]; then
+          if  [ $OPTARG == "raspbian" ] || [ $OPTARG == "Raspbian" ]; then
              CleanRaspbianOpt="y";
           fi
           ;;
@@ -967,7 +1116,7 @@ while getopts "$OPTSTRING" opt; do
           CT_TOP_DIR="/Volumes/${Volume}"
           ;;
       O)
-          OutputPath=$OPTARG
+          OutputDir=$OPTARG
           ;;
           #####################
       f)
@@ -992,7 +1141,7 @@ while getopts "$OPTSTRING" opt; do
           if [[ -n $nextOpt && $nextOpt != -* ]]; then
              OPTIND=$((OPTIND + 1))
 
-             if [ ${nextOpt} == "raspbian" ]; then
+             if [ ${nextOpt} == "raspbian" ] || [ ${nextOpt} == "Raspbian" ]; then
                 BuildRaspbianOpt=y
              fi
           else
@@ -1028,7 +1177,7 @@ while getopts "$OPTSTRING" opt; do
              ct-ngMakeClean
              exit 0
           fi
-          if  [ $OPTARG == "raspbian" ]; then
+          if  [ $OPTARG == "raspbian" ] || [ $OPTARG == "Raspbian" ]; then
              raspbianClean
              if  [ $BuildRaspbianOpt == "n" ]; then
                 exit 0
@@ -1056,7 +1205,7 @@ while getopts "$OPTSTRING" opt; do
              OPTIND=$((OPTIND + 1))
              # Any other options than raspbian, just pass
              # to ct-ng
-             if [ $nextOpt != "raspbian" ]; then
+             if [ $nextOpt != "raspbian" ] && [ $nextOpt != "Raspbian" ]; then
                 buildToolchain $nextOpt
              fi
           else
@@ -1082,9 +1231,14 @@ while getopts "$OPTSTRING" opt; do
              exit -1
           fi
           BuildRaspbianOpt=y
+
+          #elfLib is different than ElfUtils
           #downloadElfLibrary
           #buildElfLibrary
-          downloadAndBuildElfUtilsLibrary
+
+          downloadAndBuildzlib
+
+          # downloadAndBuildElfUtilsLibrary
           downloadRaspbianKernel
           configureRaspbianKernel
 
@@ -1118,10 +1272,10 @@ while getopts "$OPTSTRING" opt; do
           #####################
       P)
           # Done in first getopt for proper order
-           PATH=${CT_TOP_DIR}/${OutputPath}/${ToolchainName}/bin:${BREW_PREFIX}/bin:${BREW_PREFIX}/opt/bison:/Volumes/${VolumeBase}/ctng/bin:${PATH}
+          export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
           printf "${KNRM}PATH=${PATH}${KNRM}\n"
-          printf "./configure  ARCH=arm  CROSS_COMPILE=${CT_TOP_DIR}/$OutputPath/${ToolchainName}/bin/${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputPath}/${ToolchainName}\n"
-    printf "make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputPath/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputPath/${ToolchainName}/bin/${ToolchainName}-\n"
+          printf "./configure  ARCH=arm  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}\n"
+    printf "make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}-\n"
           exit 0
           ;;
           #####################
@@ -1142,9 +1296,15 @@ printf "${KBLU}Here we go ....${KNRM}\n"
 
 # Create the case sensitive volume first.
 createCaseSensitiveVolume
+
+# Create a directory to save/reuse tarballs
+createTarBallSourcesDir
+
 # We will put Brew and ct-ng here too so they dont need rebuilding
 # all the time
 createCaseSensitiveVolumeBase
+
+# Start with brew tools
 buildBrewDepends
 # fixLibIntl
 
