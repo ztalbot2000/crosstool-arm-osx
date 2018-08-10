@@ -347,7 +347,7 @@ function createCaseSensitiveVolumeBase()
       hdiutil create ${ImageNameBase}        \
                       -volname ${VolumeBase} \
                       -type SPARSE           \
-                      -size 1g               \
+                      -size 2g               \
                       -fs HFSX               \
                       -puppetstrings
    fi
@@ -1091,30 +1091,37 @@ function configureRaspbianKernel
 {
    cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
-   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
    echo $PATH
 
    # for bzImage
    export KERNEL=kernel7
 
-   export CCPREFIX=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}-
+   export CROSS_PREFIX=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-
 
    printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
-   export CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
-   export LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
+   export LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
+   export LFS_LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
    # make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
-   make ARCH=arm CROSS_COMPILE=${ToolchainName} CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+    make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
    # This works, but I do not need it now
-   # make nconfig
+     make nconfig
 
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
    printf "ls of ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include\n"
    ls ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
-   printf "running: make  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage\n"
+   printf "running: make  CROSS_COMPILE=${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage\n"
+export KBUILD_VERBOSE=1
 
-   make  CROSS_COMPILE=${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage
+   LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
+   HOSTCC=${ToolchainName}-gcc \
+      make  CROSS_COMPILE=${ToolchainName}- \
+        CC=${ToolchainName}-gcc \
+        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
+        zImage
+
    # make -j4 zImage 
    # Only thing changed were
 
@@ -1323,8 +1330,8 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       P)
-          # Done in first getopt for proper order
-          export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+          export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH
+  
           printf "${KNRM}PATH=${PATH}${KNRM}\n"
           printf "./configure  ARCH=arm  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}\n"
     printf "make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}-\n"
