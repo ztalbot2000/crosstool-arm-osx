@@ -929,6 +929,54 @@ elfLibURL="https://github.com/WolfgangSt/libelf.git"
       git clone --depth=1 ${elfLibURL}
    fi
 }
+function downloadAndBuildElfLibrary
+{
+   elfFile="libelf-0.8.13.tar.gz"
+   elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
+
+   printf "${KBLU}Checking for libelf.h and libelf.a ${KNRM} ... ${KNRM}"
+   if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libelf.a" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      return
+   fi
+   printf "${KYEL}not found${KNRM}\n"
+
+   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/libelf-0.8.13 ...${KNRM}"
+   if [ -d "${CT_TOP_DIR}/src/libelf-0.8.13" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      printf "${KNRM}Using existing elfutils source${KNRM}\n"
+   else
+      printf "${KYEL}not found${KNRM}\n"
+      cd "${CT_TOP_DIR}/src/"
+      printf "${KBLU}Checking for saved ${KNRM}${elfFile} ... ${KNRM}"
+      if [ -f "${TarBallSources}/${elfFile}" ]; then
+         printf "${KGRN}found${KNRM}\n"
+      else
+         printf "${KYEL}not found${KNRM}\n"
+         printf "${KBLU}Downloading ${KNRM}${elfFile} ... ${KNRM}"
+         curl -Lsf "${elfURL}" -o "${TarBallSources}/${elfFile}"
+         printf "${KGRN}done${KNRM}\n"
+      fi
+      printf "${KBLU}Copying ${elfFile} to working directory ${KNRM}"
+      cp "${TarBallSources}/${elfFile}" "${CT_TOP_DIR}/src/."
+      printf "${KGRN}done${KNRM}\n"
+      printf "${KBLU}Decompressing ${KNRM}${elfFile} ... ${KNRM}"
+      cd "${CT_TOP_DIR}/src/"
+      tar -xzf "${elfFile}"
+      printf "${KGRN}done${KNRM}\n"
+   fi
+
+    cd "${CT_TOP_DIR}/src/libelf-0.8.13"
+    CC=${ToolchainName}-gcc RANLIB=${ToolchainName}-ranlib LD={ToolchainName}-ld ./configure \
+          --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
+          --target=${ToolchainName} \
+          --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
+          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
+
+    make
+
+    make install
+}
 function buildElfLibrary
 {
     cd "${CT_TOP_DIR}/src/libelf"
@@ -963,7 +1011,7 @@ function downloadAndBuildElfUtilsLibrary
       else
          printf "${KYEL}not found${KNRM}\n"
          printf "${KBLU}Downloading ${KNRM}${elfUtilsFile} ... ${KNRM}"
-         echo curl -Lsf "${elfUtilsURL}" -o "${TarBallSources}/${elfUtilsFile}"
+         curl -Lsf "${elfUtilsURL}" -o "${TarBallSources}/${elfUtilsFile}"
          printf "${KGRN}done${KNRM}\n"
       fi
       printf "${KBLU}Copying ${elfUtilsFile} to working directory ${KNRM}"
@@ -1020,7 +1068,7 @@ function downloadRaspbianKernel
 RaspbianURL="https://github.com/raspberrypi/linux.git"
 
    cd "${CT_TOP_DIR}"
-   printf "${KBLU}Downloading Raspbian Kernel latest... to ${PWD}${KNRM}\n"
+   printf "${KBLU}Downloading Raspbian Kernel latest... to ${KNRM}${PWD}${KNRM}\n"
 
    if [ -d "${RaspbianSrcDir}" ]; then
       printf "${KRED}WARNING ${KNRM}Path already exists ${RaspbianSrcDir}${KNRM}\n"
@@ -1030,7 +1078,7 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
       git fetch
     
    else
-      printf "${KBLU}Creating ${RaspbianSrcDir} ... ${KNRM}"
+      printf "${KBLU}Creating ${KNRM}${RaspbianSrcDir} ... ${KNRM}"
       mkdir "${RaspbianSrcDir}"
       printf "${KGRN}done${KNRM}\n"
 
@@ -1052,18 +1100,21 @@ function configureRaspbianKernel
    export CCPREFIX=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}-
 
    printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
+   export CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
+   export LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
    # make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
-   make ARCH=arm CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName} CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+   make ARCH=arm CROSS_COMPILE=${ToolchainName} CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
    # This works, but I do not need it now
    # make nconfig
 
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
+   printf "ls of ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include\n"
    ls ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
-   echo ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
-   export CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
-   make  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage
+   printf "running: make  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage\n"
+
+   make  CROSS_COMPILE=${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage
    # make -j4 zImage 
    # Only thing changed were
 
@@ -1237,6 +1288,7 @@ while getopts "$OPTSTRING" opt; do
           #buildElfLibrary
 
           downloadAndBuildzlib
+          downloadAndBuildElfLibrary
 
           # downloadAndBuildElfUtilsLibrary
           downloadRaspbianKernel
