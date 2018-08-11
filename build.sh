@@ -255,7 +255,7 @@ function cleanBrew()
 {
    if [ -f "${BrewHome}/.flagToDeleteBrewLater" ]; then
       printf "${KBLU}Cleaning our brew tools...${KNRM}\n"
-      printf "Checking for ${BrewHome} ... "
+      printf "Checking for ${KNRM}${BrewHome} ... "
       if [ -d "${BrewHome}" ]; then
          printf "${KGRN}OK${KNRM}\n"
       else
@@ -274,7 +274,7 @@ function ct-ngMakeClean()
 {
    printf "${KBLU}Cleaning ct-ng...${KNRM}\n"
    ctDir="/Volumes/${VolumeBase}/${CrossToolSourceDir}"
-   printf "Checking for ${ctDir}\n"
+   printf "Checking for ${KNRM}${ctDir} ..."
    if [ -d "${ctDir}" ]; then
       printf "${KGRN}OK${KNRM}\n"
    else
@@ -287,14 +287,14 @@ function ct-ngMakeClean()
 function raspbianClean()
 {
    printf "${KBLU}Cleaning raspbian (make mrproper)...${KNRM}\n"
-   printf "Checking for ${CT_TOP_DIR}/${RaspbianSrcDir} ... "
+   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/${RaspbianSrcDir} ... "
    if [ -d "${CT_TOP_DIR}/${RaspbianSrcDir}" ]; then
       printf "${KGRN}OK${KNRM}\n"
    else
       printf "${KRED}not found${KNRM}\n"
       exit -1
    fi
-   printf "Checking for ${CT_TOP_DIR}/${RaspbianSrcDir}/linux ... "
+   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/${RaspbianSrcDir}/linux ... "
    if [ -d "${CT_TOP_DIR}/${RaspbianSrcDir}/linux" ]; then
       printf "${KGRN}OK${KNRM}\n"
    else
@@ -362,7 +362,7 @@ function createTarBallSourcesDir()
        printf "${KGRN}found${KNRM}\n"
        return
     fi
-    printf "${KNRM}Creating ${TarBallSources}...${KNRM}"
+    printf "${KNRM}Creating ${KNRM}${TarBallSources}...${KNRM}"
     mkdir "${TarBallSources}"
     printf "${KGRN}done${KNRM}\n"
     return
@@ -372,7 +372,7 @@ function createTarBallSourcesDir()
 function createCaseSensitiveVolume()
 {
     VolumeDir="${CT_TOP_DIR}"
-    printf "${KBLU}Creating volume mounted as ${VolumeDir}...${KNRM}\n"
+    printf "${KBLU}Creating volume mounted as ${KNRM}${VolumeDir}...${KNRM}\n"
     if [  -d "${VolumeDir}" ]; then
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${VolumeDir}${KNRM}\n"
       
@@ -441,13 +441,13 @@ function buildBrewDepends()
    # change to Exit immediately if a command exits with a non-zero status.
    set -e
 
-   printf "${KBLU}Checking for $BrewHome/bin/gsha512sum ...${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/gsha512sum ...${KNRM}"
    if [ ! -f $BrewHome/bin/gsha512sum ]; then
       printf "${KRED}Not found${KNRM}\n"
       exit 1
    fi
    printf "${KGRN}found${KNRM}\n"
-   printf "${KBLU}Checking for $BrewHome/bin/sha512sum ...${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sha512sum ...${KNRM}"
    if [ ! -f $BrewHome/bin/gsha512sum ]; then
       printf "${KNRM}\nLinking gsha512sum to sha512sum${KNRM}\n"
       ln -s $BrewHome/bin/gsha512sum $BrewHome/bin/sha512sum
@@ -455,14 +455,14 @@ function buildBrewDepends()
       printf "${KGRN}found${KNRM}\n"
    fi
 
-   printf "${KBLU}Checking for $BrewHome/bin/gsha256sum ...${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/gsha256sum ...${KNRM}"
    if [ ! -f $BrewHome/bin/gsha256sum ]; then
       printf "${KRED}Not found${KNRM}\n"
       exit 1
    fi
    printf "${KGRN}found${KNRM}\n"
 
-   printf "${KBLU}Checking for $BrewHome/bin/sha256sum ...${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sha256sum ...${KNRM}"
    if [ ! -f $BrewHome/bin/gsha256sum ]; then
       printf "${KNRM}\nLinking gsha256sum to sha256sum${KNRM}\n"
       ln -s $BrewHome/bin/gsha256sum $BrewHome/bin/sha256sum
@@ -470,7 +470,7 @@ function buildBrewDepends()
       printf "${KGRN}found${KNRM}\n"
    fi
 
-#  printf "${KBLU}Checking for $BrewHome/bin/readelf ...${KNRM}"
+#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/readelf ...${KNRM}"
 #  if [ ! -f $BrewHome/bin/readelf ]; then
 #     printf "${KNRM}\nLinking greadelf to readelf${KNRM}\n"
 #     ln -s $BrewHome/bin/greadelf $BrewHome/bin/readelf
@@ -478,7 +478,7 @@ function buildBrewDepends()
 #     printf "${KGRN}found${KNRM}\n"
 #  fi
 
-#  printf "${KBLU}Checking for $BrewHome/bin/ranlib ...${KNRM}"
+#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/ranlib ...${KNRM}"
 #  if [ ! -f $BrewHome/bin/ranlib ]; then
 #     printf "${KNRM}\nLinking granlib to ranlib${KNRM}\n"
 #     ln -s $BrewHome/bin/granlib $BrewHome/bin/ranlib
@@ -486,7 +486,7 @@ function buildBrewDepends()
 #     printf "${KGRN}found${KNRM}\n"
 #  fi
 #
-#  printf "${KBLU}Checking for $BrewHome/bin/objcopy ...${KNRM}"
+#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/objcopy ...${KNRM}"
 #  if [ ! -f $BrewHome/bin/objcopy ]; then
 #     printf "${KNRM}\nLinking gobjcopy to objcopy${KNRM}\n"
 #     ln -s $BrewHome/bin/gobjcopy $BrewHome/bin/objcopy
@@ -494,7 +494,7 @@ function buildBrewDepends()
 #     printf "${KGRN}found${KNRM}\n"
 #  fi
 #
-#  printf "${KBLU}Checking for $BrewHome/bin/objdump ...${KNRM}"
+#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/objdump ...${KNRM}"
 #  if [ ! -f $BrewHome/bin/objdump ]; then
 #     printf "${KNRM}\nLinking gobjdump to objdump${KNRM}\n"
 #     ln -s $BrewHome/bin/gobjdump $BrewHome/bin/objdump
@@ -502,7 +502,7 @@ function buildBrewDepends()
 #     printf "${KGRN}found${KNRM}\n"
 #  fi
 #
-#  printf "${KBLU}Checking for $BrewHome/bin/sed ...${KNRM}"
+#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sed ...${KNRM}"
 #  if [ ! -f $BrewHome/bin/sed ]; then
 #     printf "${KNRM}\nLinking gsed to sed${KNRM}\n"
 #     ln -s $BrewHome/bin/gsed $BrewHome/bin/sed
@@ -510,12 +510,34 @@ function buildBrewDepends()
 #     printf "${KGRN}found${KNRM}\n"
 #  fi
 
-   printf "${KBLU}Checking for $BrewHome/bin/grep ...${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/grep ...${KNRM}"
    if [ ! -f $BrewHome/bin/grep ]; then
       printf "${KNRM}\nLinking ggrep to grep${KNRM}\n"
       ln -s $BrewHome/bin/ggrep $BrewHome/bin/grep
    else
       printf "${KGRN}found${KNRM}\n"
+   fi
+
+   printf "${KBLU}Checking for ${KNRM}${BrewHome}/opt/gcc/bin/gcc-8 ...${KNRM}"
+   if [ -f "${BrewHome}/opt/gcc/bin/gcc-8" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      printf "${KBLU}Linking gcc-8 tools to gcc${KNRM}\n"
+      rc="n"
+      cd "${BrewHome}/opt/gcc/bin"
+      for fn in `ls *-8`; do
+         newFn=${fn/-8}
+         if [ ! -L "${newFn}" ]; then
+            rc="y"
+            printf "${KNRM}linking ${fn} to ${newFn} ...${KNRM}"
+            ln -sf ${fn} ${newFn}
+            printf "${KGRN}done${KNRM}\n"
+         fi
+      done
+      if [ $rc == "n" ]; then
+         printf "${KGRN}links already in place${KNRM}\n"
+      fi
+   else
+      printf "${KYEL}Not found${KNRM}\n"
    fi
 
 }
@@ -616,13 +638,13 @@ function downloadCrossTool()
 
 function downloadCrossTool_LATEST()
 {  
+   cd /Volumes/${VolumeBase}
+   printf "${KBLU}Downloading crosstool-ng... to ${PWD}${KNRM}\n"
    if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
       printf "${KGRN}    - found existing ct-ng. Using it instead${KNRM}\n"
       return
    fi
 
-   cd /Volumes/${VolumeBase}
-   printf "${KBLU}Downloading crosstool-ng... to ${PWD}${KNRM}\n"
 
    if [ -d "${CrossToolSourceDir}" ]; then 
       printf "   ${KRED}WARNING${KNRM} - ${CrossToolSourceDir} exists and will be used.\n"
@@ -661,6 +683,7 @@ function patchConfigFileForOutputDir()
 
 function patchCrosstool()
 {
+    printf "${KBLU}Patching crosstool-ng...${KNRM}\n"
     if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
       printf "${KGRN}    - found existing ct-ng. Using it instead${KNRM}\n"
       return
@@ -680,12 +703,12 @@ function patchCrosstool()
 
 function buildCrosstool()
 {
+   printf "${KBLU}Configuring crosstool-ng... in ${PWD}${KNRM}\n"
    if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
       printf "${KGRN}    - found existing ct-ng. Using it instead${KNRM}\n"
       return
    fi
    cd "/Volumes/${VolumeBase}/${CrossToolSourceDir}"
-   printf "${KBLU}Configuring crosstool-ng... in ${PWD}${KNRM}\n"
 
 
    # It is strange that gettext is put in opt
@@ -807,8 +830,7 @@ CONFIG_EOF
    if [ $OutputDir != 'x-tools' ]; then
       printf "${KNRM} -O ${OutputDir}${KNRM}"
    fi
-   printf "${KNRM} -b${KNRM}\n"
-   printf "${KBLU}or${KNRM}\n"
+   printf "${KBLU}     or${KNRM}\n"
    printf "PATH=$PATH${KNRM}\n"
    printf "cd ${CT_TOP_DIR}${KNRM}\n"
    printf "ct-ng build${KNRM}\n"
@@ -867,7 +889,7 @@ function downloadAndBuildzlib
    zlibFile="zlib-1.2.11.tar.gz"
    zlibURL="https://zlib.net/zlib-1.2.11.tar.gz"
 
-   printf "${KBLU}Checking for zlib.h and libz.a ${KNRM} ... ${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}zlib.h and libz.a ... ${KNRM}"
    if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/zlib.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
       printf "${KGRN}found${KNRM}\n"
       return
@@ -934,7 +956,7 @@ function downloadAndBuildSharedElfLibrary
    elfFile="libelf-0.8.13.tar.gz"
    elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
 
-   printf "${KBLU}Checking for libelf.h and libelf.so ${KNRM} ... ${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}libelf.h and libelf.so ... ${KNRM}"
    if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libelf.so" ]; then
       printf "${KGRN}found${KNRM}\n"
       return
@@ -985,7 +1007,7 @@ function downloadAndBuildStaticElfLibrary
    elfFile="libelf-0.8.13.tar.gz"
    elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
 
-   printf "${KBLU}Checking for libelf.h and libelf.a ${KNRM} ... ${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}libelf.h and libelf.a ... ${KNRM}"
    if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libelf.a" ]; then
       printf "${KGRN}found${KNRM}\n"
       return
@@ -1042,7 +1064,7 @@ function downloadAndBuildElfUtilsLibrary
    elfUtilsFile="elfutils-0.170.tar.bz2"
    elfUtilsURL=" https://sourceware.org/ftp/elfutils/0.170/elfutils-0.170.tar.bz2"
 
-   printf "${KBLU}Checking for libelf.h and libz.a ${KNRM} ... ${KNRM}"
+   printf "${KBLU}Checking for ${KNRM}libelf.h and libz.a ... ${KNRM}"
    if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
       printf "${KGRN}found${KNRM}\n"
       return
