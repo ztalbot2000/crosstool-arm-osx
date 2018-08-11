@@ -121,7 +121,7 @@ BrewHome="/Volumes/${VolumeBase}/brew"
 #
 # for Raspbian tools - libelf gcc ncurses
 # for xconfig - QT   (takes hours)
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison"
+BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison gcc"
 
 # This is required so brew can be installed elsewhere
 # Comments are for cut and paste during development
@@ -130,7 +130,7 @@ BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man aut
 # export PKG_CONFIG_PATH=${BREW_PREFIX}
 # export OutputDir='x-tools'
 # ToolchainName='arm-rpi3-eabihf'
-#  export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+#  export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 # EXTRA_CFLAGS=-I${PWD}/arch/arm/include/asm
 # export CCPREFIX=/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/bin/arm-rpi3-eabihf-
 # ARCH=arm CROSS_COMPILE=${CCPREFIX} make O=/Volumes/${Volume}/build/kernel
@@ -419,7 +419,7 @@ function buildBrewDepends()
    else
       printf "   - Using existing Brew installation in ${BrewHome}${KNRM}\n"
    fi
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    printf "${KBLU}Updating HomeBrew tools...${KNRM}\n"
    printf "${KRED}Ignore the ERROR: could not link${KNRM}\n"
@@ -790,7 +790,7 @@ CONFIG_EOF
    # Give the user a chance to digest this
    sleep 5
 
-   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    # Use 'menuconfig' target for the fine tuning.
 
@@ -843,7 +843,7 @@ function buildToolchain()
    else
       printf "${KGRN}   -Done${KNRM}\n"
    fi
-   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    if [ "$1" == "list-steps" ]; then
       ct-ng "$1"
@@ -929,7 +929,58 @@ elfLibURL="https://github.com/WolfgangSt/libelf.git"
       git clone --depth=1 ${elfLibURL}
    fi
 }
-function downloadAndBuildElfLibrary
+function downloadAndBuildSharedElfLibrary
+{
+   elfFile="libelf-0.8.13.tar.gz"
+   elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
+
+   printf "${KBLU}Checking for libelf.h and libelf.so ${KNRM} ... ${KNRM}"
+   if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libelf.so" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      return
+   fi
+   printf "${KYEL}not found${KNRM}\n"
+
+   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/libelf-0.8.13 ...${KNRM}"
+   if [ -d "${CT_TOP_DIR}/src/libelf-0.8.13" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      printf "${KNRM}Using existing elfutils source${KNRM}\n"
+   else
+      printf "${KYEL}not found${KNRM}\n"
+      cd "${CT_TOP_DIR}/src/"
+      printf "${KBLU}Checking for saved ${KNRM}${elfFile} ... ${KNRM}"
+      if [ -f "${TarBallSources}/${elfFile}" ]; then
+         printf "${KGRN}found${KNRM}\n"
+      else
+         printf "${KYEL}not found${KNRM}\n"
+         printf "${KBLU}Downloading ${KNRM}${elfFile} ... ${KNRM}"
+         curl -Lsf "${elfURL}" -o "${TarBallSources}/${elfFile}"
+         printf "${KGRN}done${KNRM}\n"
+      fi
+      printf "${KBLU}Copying ${elfFile} to working directory ${KNRM}"
+      cp "${TarBallSources}/${elfFile}" "${CT_TOP_DIR}/src/."
+      printf "${KGRN}done${KNRM}\n"
+      printf "${KBLU}Decompressing ${KNRM}${elfFile} ... ${KNRM}"
+      cd "${CT_TOP_DIR}/src/"
+      tar -xzf "${elfFile}"
+      printf "${KGRN}done${KNRM}\n"
+   fi
+
+    cd "${CT_TOP_DIR}/src/libelf-0.8.13"
+
+    CC=${ToolchainName}-gcc RANLIB=${ToolchainName}-ranlib LD={ToolchainName}-ld ./configure \
+          --enable-shared \
+          --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
+          --target=${ToolchainName} \
+          --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
+          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
+
+exit
+    make
+
+    make install
+}
+function downloadAndBuildStaticElfLibrary
 {
    elfFile="libelf-0.8.13.tar.gz"
    elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
@@ -1103,10 +1154,10 @@ function configureRaspbianKernel
    export LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
    export LFS_LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
    # make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
-    make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+#   make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
    # This works, but I do not need it now
-     make nconfig
+#    make nconfig
 
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
@@ -1115,8 +1166,8 @@ function configureRaspbianKernel
    printf "running: make  CROSS_COMPILE=${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage\n"
 export KBUILD_VERBOSE=1
 
-   LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
    HOSTCC=${ToolchainName}-gcc \
+   ARCH=arm \
       make  CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
         --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
@@ -1295,7 +1346,8 @@ while getopts "$OPTSTRING" opt; do
           #buildElfLibrary
 
           downloadAndBuildzlib
-          downloadAndBuildElfLibrary
+          downloadAndBuildStaticElfLibrary
+          downloadAndBuildSharedElfLibrary
 
           # downloadAndBuildElfUtilsLibrary
           downloadRaspbianKernel
@@ -1353,15 +1405,15 @@ done
 
 printf "${KBLU}Here we go ....${KNRM}\n"
 
-# Create the case sensitive volume first.
-createCaseSensitiveVolume
+# We will put Brew and ct-ng here too so they dont need rebuilding
+# all the time
+createCaseSensitiveVolumeBase
 
 # Create a directory to save/reuse tarballs
 createTarBallSourcesDir
 
-# We will put Brew and ct-ng here too so they dont need rebuilding
-# all the time
-createCaseSensitiveVolumeBase
+# Create the case sensitive volume first.
+createCaseSensitiveVolume
 
 # Start with brew tools
 buildBrewDepends
