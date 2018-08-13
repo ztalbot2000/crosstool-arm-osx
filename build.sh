@@ -91,7 +91,7 @@ VolumeBase="${Volume}Base"
 # Downloading the sources all the time is painful, especially when one site is down
 # There is no option for this because the ct-ng config file must also be
 # changed
-TarBallSources="/Volumes/${VolumeBase}/sources"
+TarBallSourcesPath="/Volumes/${VolumeBase}/sources"
 
 # The compiler will be placed in /Volumes/<Volume>/x-tools
 # It can be overriden with -O <OutputDir>.  Do this instead as 'x-tools' is
@@ -121,7 +121,7 @@ BrewHome="/Volumes/${VolumeBase}/brew"
 #
 # for Raspbian tools - libelf gcc ncurses
 # for xconfig - QT   (takes hours)
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison gcc"
+BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison"
 
 # This is required so brew can be installed elsewhere
 # Comments are for cut and paste during development
@@ -287,6 +287,10 @@ function ct-ngMakeClean()
 function raspbianClean()
 {
    printf "${KBLU}Cleaning raspbian (make mrproper)...${KNRM}\n"
+
+   # Remove our elf.h
+   cleanupElfHeaderForOSX
+
    printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/${RaspbianSrcDir} ... "
    if [ -d "${CT_TOP_DIR}/${RaspbianSrcDir}" ]; then
       printf "${KGRN}OK${KNRM}\n"
@@ -308,6 +312,9 @@ function realClean()
 {
    # We need to clean brew as it purges brew's cache
    cleanBrew
+
+   # Remove our elf.h
+   cleanupElfHeaderForOSX
 
    if [ -d  "/Volumes/${VolumeBase}" ]; then 
       printf "${KBLU}Unmounting  /Volumes/${VolumeBase}${KNRM}\n"
@@ -357,13 +364,13 @@ function createCaseSensitiveVolumeBase()
 
 function createTarBallSourcesDir()
 {
-    printf "${KBLU}Checking for saved tarballs directory ${KNRM}${TarBallSources}...${KNRM}"
-    if [ -d "${TarBallSources}" ]; then
+    printf "${KBLU}Checking for saved tarballs directory ${KNRM}${TarBallSourcesPath}...${KNRM}"
+    if [ -d "${TarBallSourcesPath}" ]; then
        printf "${KGRN}found${KNRM}\n"
        return
     fi
-    printf "${KNRM}Creating ${KNRM}${TarBallSources}...${KNRM}"
-    mkdir "${TarBallSources}"
+    printf "${KNRM}Creating ${KNRM}${TarBallSourcesPath}...${KNRM}"
+    mkdir "${TarBallSourcesPath}"
     printf "${KGRN}done${KNRM}\n"
     return
 }
@@ -394,7 +401,7 @@ function createCaseSensitiveVolume()
       hdiutil create ${ImageName}           \
                       -volname ${Volume}    \
                       -type SPARSE          \
-                      -size 16g             \
+                      -size 32             \
                       -fs HFSX              \
                       -puppetstrings
    fi
@@ -881,7 +888,7 @@ function buildLibtool
     # ./configure --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}
     ./configure  -prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}  --host=${ToolchainName}
     make
-    make installkkkkkkkkkk
+    make install
 }
 
 function downloadAndBuildzlib
@@ -904,16 +911,16 @@ function downloadAndBuildzlib
       printf "${KYEL}not found${KNRM}\n"
       cd "${CT_TOP_DIR}/src/"
       printf "${KBLU}Checking for saved ${KNRM}${zlibFile} ... ${KNRM}"
-      if [ -f "${TarBallSources}/${zlibFile}" ]; then
+      if [ -f "${TarBallSourcesPath}/${zlibFile}" ]; then
          printf "${KGRN}found${KNRM}\n"
       else
          printf "${KYEL}not found${KNRM}\n"
          printf "${KBLU}Downloading ${KNRM}${zlibFile} ... ${KNRM}"
-         curl -Lsf "${zlibURL}" -o "${TarBallSources}/${zlibFile}"
+         curl -Lsf "${zlibURL}" -o "${TarBallSourcesPath}/${zlibFile}"
          printf "${KGRN}done${KNRM}\n"
       fi
       printf "${KBLU}Copying ${zlibFile} to working directory ${KNRM}"
-      cp "${TarBallSources}/${zlibFile}" "${CT_TOP_DIR}/src/."
+      cp "${TarBallSourcesPath}/${zlibFile}" "${CT_TOP_DIR}/src/."
       printf "${KGRN}done${KNRM}\n"
       printf "${KBLU}Decompressing ${KNRM}${zlibFile} ... ${KNRM}"
       cd "${CT_TOP_DIR}/src/"
@@ -953,6 +960,7 @@ elfLibURL="https://github.com/WolfgangSt/libelf.git"
 }
 function downloadAndBuildSharedElfLibrary
 {
+   printf "${KBLU}In downloadAndBuildSharedElfLibrary ${KNRM}\n"
    elfFile="libelf-0.8.13.tar.gz"
    elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
 
@@ -963,24 +971,29 @@ function downloadAndBuildSharedElfLibrary
    fi
    printf "${KYEL}not found${KNRM}\n"
 
+   # remove compiled source so that we can gaurantee building it shared properly
+   removePathWithCheck "${CT_TOP_DIR}/src/libelf-0.8.13" 
+
    printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/libelf-0.8.13 ...${KNRM}"
    if [ -d "${CT_TOP_DIR}/src/libelf-0.8.13" ]; then
       printf "${KGRN}found${KNRM}\n"
-      printf "${KNRM}Using existing elfutils source${KNRM}\n"
+      printf "${KNRM}Using existing libelf source${KNRM}\n"
+      printf "${KBLU}Cleaning existing libelf source${KNRM}\n"
+      cd  "${CT_TOP_DIR}/src/libelf-0.8.13" 
+      make clean
    else
       printf "${KYEL}not found${KNRM}\n"
-      cd "${CT_TOP_DIR}/src/"
       printf "${KBLU}Checking for saved ${KNRM}${elfFile} ... ${KNRM}"
-      if [ -f "${TarBallSources}/${elfFile}" ]; then
+      if [ -f "${TarBallSourcesPath}/${elfFile}" ]; then
          printf "${KGRN}found${KNRM}\n"
       else
          printf "${KYEL}not found${KNRM}\n"
          printf "${KBLU}Downloading ${KNRM}${elfFile} ... ${KNRM}"
-         curl -Lsf "${elfURL}" -o "${TarBallSources}/${elfFile}"
+         curl -Lsf "${elfURL}" -o "${TarBallSourcesPath}/${elfFile}"
          printf "${KGRN}done${KNRM}\n"
       fi
       printf "${KBLU}Copying ${elfFile} to working directory ${KNRM}"
-      cp "${TarBallSources}/${elfFile}" "${CT_TOP_DIR}/src/."
+      cp "${TarBallSourcesPath}/${elfFile}" "${CT_TOP_DIR}/src/."
       printf "${KGRN}done${KNRM}\n"
       printf "${KBLU}Decompressing ${KNRM}${elfFile} ... ${KNRM}"
       cd "${CT_TOP_DIR}/src/"
@@ -990,20 +1003,31 @@ function downloadAndBuildSharedElfLibrary
 
     cd "${CT_TOP_DIR}/src/libelf-0.8.13"
 
-    CC=${ToolchainName}-gcc RANLIB=${ToolchainName}-ranlib LD={ToolchainName}-ld ./configure \
+    # libelf stupidly does not build shared, so force it to
+    sed -i .bak -e's/mr_cv_target_elf=no/mr_cv_target_elf=yes/g' configure
+
+    CC=${ToolchainName}-gcc \
+    RANLIB=${ToolchainName}-ranlib \
+    LD=${ToolchainName}-ld \
+    ${CT_TOP_DIR}/src/libelf-0.8.13/configure \
           --enable-shared \
+          --enable-gnu-names \
+          --host=${ToolchainName}  \
           --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
           --target=${ToolchainName} \
           --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
           --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
 
-exit
     make
 
     make install
+
+   # remove compiled source so that we can gaurantee building it another time  properly
+   removePathWithCheck "${CT_TOP_DIR}/src/libelf-0.8.13" 
 }
 function downloadAndBuildStaticElfLibrary
 {
+   printf "${KBLU}In downloadAndBuildStaticElfLibrary ${KNRM}\n"
    elfFile="libelf-0.8.13.tar.gz"
    elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
 
@@ -1018,20 +1042,23 @@ function downloadAndBuildStaticElfLibrary
    if [ -d "${CT_TOP_DIR}/src/libelf-0.8.13" ]; then
       printf "${KGRN}found${KNRM}\n"
       printf "${KNRM}Using existing elfutils source${KNRM}\n"
+      printf "${KBLU}Cleaning existing libelf source${KNRM}\n"
+      cd  "${CT_TOP_DIR}/src/libelf-0.8.13" 
+      make clean
    else
       printf "${KYEL}not found${KNRM}\n"
       cd "${CT_TOP_DIR}/src/"
       printf "${KBLU}Checking for saved ${KNRM}${elfFile} ... ${KNRM}"
-      if [ -f "${TarBallSources}/${elfFile}" ]; then
+      if [ -f "${TarBallSourcesPath}/${elfFile}" ]; then
          printf "${KGRN}found${KNRM}\n"
       else
          printf "${KYEL}not found${KNRM}\n"
          printf "${KBLU}Downloading ${KNRM}${elfFile} ... ${KNRM}"
-         curl -Lsf "${elfURL}" -o "${TarBallSources}/${elfFile}"
+         curl -Lsf "${elfURL}" -o "${TarBallSourcesPath}/${elfFile}"
          printf "${KGRN}done${KNRM}\n"
       fi
       printf "${KBLU}Copying ${elfFile} to working directory ${KNRM}"
-      cp "${TarBallSources}/${elfFile}" "${CT_TOP_DIR}/src/."
+      cp "${TarBallSourcesPath}/${elfFile}" "${CT_TOP_DIR}/src/."
       printf "${KGRN}done${KNRM}\n"
       printf "${KBLU}Decompressing ${KNRM}${elfFile} ... ${KNRM}"
       cd "${CT_TOP_DIR}/src/"
@@ -1040,7 +1067,10 @@ function downloadAndBuildStaticElfLibrary
    fi
 
     cd "${CT_TOP_DIR}/src/libelf-0.8.13"
-    CC=${ToolchainName}-gcc RANLIB=${ToolchainName}-ranlib LD={ToolchainName}-ld ./configure \
+    CC=${ToolchainName}-gcc \
+    RANLIB=${ToolchainName}-ranlib  \
+    LD=${ToolchainName}-ld \
+    ./configure \
           --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
           --target=${ToolchainName} \
           --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
@@ -1049,6 +1079,7 @@ function downloadAndBuildStaticElfLibrary
     make
 
     make install
+
 }
 function buildElfLibrary
 {
@@ -1079,16 +1110,16 @@ function downloadAndBuildElfUtilsLibrary
       printf "${KYEL}not found${KNRM}\n"
       cd "${CT_TOP_DIR}/src/"
       printf "${KBLU}Checking for saved ${KNRM}${elfUtilsFile} ... ${KNRM}"
-      if [ -f "${TarBallSources}/${elfUtilsFile}" ]; then
+      if [ -f "${TarBallSourcesPath}/${elfUtilsFile}" ]; then
          printf "${KGRN}found${KNRM}\n"
       else
          printf "${KYEL}not found${KNRM}\n"
          printf "${KBLU}Downloading ${KNRM}${elfUtilsFile} ... ${KNRM}"
-         curl -Lsf "${elfUtilsURL}" -o "${TarBallSources}/${elfUtilsFile}"
+         curl -Lsf "${elfUtilsURL}" -o "${TarBallSourcesPath}/${elfUtilsFile}"
          printf "${KGRN}done${KNRM}\n"
       fi
       printf "${KBLU}Copying ${elfUtilsFile} to working directory ${KNRM}"
-      cp "${TarBallSources}/${elfUtilsFile}" "${CT_TOP_DIR}/src/."
+      cp "${TarBallSourcesPath}/${elfUtilsFile}" "${CT_TOP_DIR}/src/."
       printf "${KGRN}done${KNRM}\n"
       printf "${KBLU}Decompressing ${KNRM}${elfUtilsFile} ... ${KNRM}"
       cd "${CT_TOP_DIR}/src/"
@@ -1159,13 +1190,58 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
       git clone --depth=1 ${RaspbianURL}
    fi
 }
+function downloadElfHeaderForOSX
+{
+   ElfHeaderFile="/usr/local/include/elf.h"
+   printf "${KBLU}Checking for ${KNRM}${ElfHeaderFile}${KNRM}\n"
+   if [ -f "${ElfHeaderFile}" ]; then
+      printf "${KGRN}found${KNRM}\n"
+   else
+      printf "${KRED}\n\n *** IMPORTANT*** ${KNRM}\n"
+      printf "${KRED}The gcc with OSX does not have an elf.h \n"
+      printf "${KRED}No CFLAGS will fix this as the compile strips them\n"
+      printf "${KRED}A copy from GitHub will be placed in /usr/local/include\n"
+      printf "${KRED}Another copy will be put in The Raspbian source linux subdirectory,\n"
+      printf "${KRED}as a reminder for this tool to remove it later.${KNRM}\n\n\n"
+      sleep 6
+      
+      ElfHeaderFileURL="https://gist.githubusercontent.com/mlafeldt/3885346/raw/2ee259afd8407d635a9149fcc371fccf08b0c05b/elf.h"
+      curl -Lsf ${ElfHeaderFileURL} >  ${ElfHeaderFile}
+      #Placing it here too is a flag for us to remember to remove it from /usr/local
+      cp "${ElfHeaderFile}" "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h"
+   fi
+}
+
+function cleanupElfHeaderForOSX
+{
+   ElfHeaderFile="/usr/local/include/elf.h"
+   printf "${KBLU}Checking for ${KNRM}${ElfHeaderFile}${KNRM} ..."
+   if [ -f "${ElfHeaderFile}" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      if [ -f "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h" ]; then
+         printf "${KGRN}Removing ${ElfHeaderFile}${KNRM} ... "
+         rm "${ElfHeaderFile}"
+         rm "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h"
+         printf "${KGRN}done${KNRM}\n"
+      else
+         printf "${KRED}Warning. There is a ${KNRM}${ElfHeaderFile}\n"
+         printf "${KRED}But it was not put there by this tool, I believe${KNRM}"
+         sleep 4
+      fi
+   else
+      printf "${KGRN}Not found - OK${KNRM}\n"
+
+   fi
+}
 
 function configureRaspbianKernel
 {
    cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
+
    export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
    echo $PATH
+
 
    # for bzImage
    export KERNEL=kernel7
@@ -1176,10 +1252,10 @@ function configureRaspbianKernel
    export LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
    export LFS_LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
    # make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
-#   make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+    make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
    # This works, but I do not need it now
-#    make nconfig
+     make nconfig
 
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
@@ -1188,6 +1264,8 @@ function configureRaspbianKernel
    printf "running: make  CROSS_COMPILE=${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage\n"
 export KBUILD_VERBOSE=1
 
+   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
    HOSTCC=${ToolchainName}-gcc \
    ARCH=arm \
       make  CROSS_COMPILE=${ToolchainName}- \
@@ -1373,7 +1451,9 @@ while getopts "$OPTSTRING" opt; do
 
           # downloadAndBuildElfUtilsLibrary
           downloadRaspbianKernel
+          downloadElfHeaderForOSX
           configureRaspbianKernel
+          cleanupElfHeaderForOSX
 
           exit 0
           ;;
