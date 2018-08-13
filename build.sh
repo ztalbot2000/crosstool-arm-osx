@@ -118,10 +118,11 @@ BrewHome="/Volumes/${VolumeBase}/brew"
 # coreutils is for sha512sum
 # sha2 is for sha512
 # bison on osx was too old (2.3) and gcc compiler did not like it
+# findutils is for xargs, needed by make modules in Raspbian
 #
 # for Raspbian tools - libelf gcc ncurses
 # for xconfig - QT   (takes hours)
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison"
+BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison findutils"
 
 # This is required so brew can be installed elsewhere
 # Comments are for cut and paste during development
@@ -473,6 +474,14 @@ function buildBrewDepends()
    if [ ! -f $BrewHome/bin/gsha256sum ]; then
       printf "${KNRM}\nLinking gsha256sum to sha256sum${KNRM}\n"
       ln -s $BrewHome/bin/gsha256sum $BrewHome/bin/sha256sum
+   else
+      printf "${KGRN}found${KNRM}\n"
+   fi
+
+   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/stat ...${KNRM}"
+   if [ ! -f $BrewHome/bin/gstat ]; then
+      printf "${KNRM}\nLinking gstat to stat${KNRM}\n"
+      ln -s $BrewHome/bin/gstat $BrewHome/bin/stat
    else
       printf "${KGRN}found${KNRM}\n"
    fi
@@ -1268,12 +1277,11 @@ export KBUILD_VERBOSE=1
    KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
    HOSTCC=${ToolchainName}-gcc \
    ARCH=arm \
-      make  CROSS_COMPILE=${ToolchainName}- \
+      make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
         --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
-        zImage
+        zImage modules dtbs
 
-   # make -j4 zImage 
    # Only thing changed were
 
    # *
