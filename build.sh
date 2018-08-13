@@ -2,11 +2,12 @@
 #
 #  Author: John Talbot
 #
-#  Changes
-#    3/11/18 - Updated to use crosstool-ng v1.23
-#    3/12/18 - You can now choose crosstool-ng (Latest) from git 
-#
 #  Installs a gcc cross compiler for compiling code for raspberry pi on OSX.
+#  It also can build Raspbian as well.  The goal is to build a fully patched
+#  Raspbian RT-Linux image with the LinuxCnC tools and bCnC too.
+#
+#  Check the README.md for the latest status of this goal.
+#
 #  This script is based on several scripts and forum posts I've found around
 #  the web, the most significant being: 
 #
@@ -20,18 +21,21 @@
 #  I abandoned in favor of crosstool-ng
 #
 #  The process:
-#  (1) Install HomeBrew and packages: gnu-sed binutils gawk automake libtool
-#                                     bash grep wget xz help2man
 #
-#  (2) Download Homebrew to $BrewHome so as not to interfere with macports or fink
+#  (1) Create a case sensitive volume using hdiutil and mount it to /Volumes/$Volume[Base]
+#      where brew and crosstool-ng will be placed so as not to interfere
+#      with any existing installations
 #
-#  (3) Create a case sensitive volume using hdiutil and mount it to /Volumes/$Volume
-#      The size of the volume grows as needed since it is of type SPARSE.
-#      This also means that the filee of the mounted volume is $ImageName.sparseimage
+#  (2) Create another case sensitive volume where the cross compilere created with
+#      crosstool-ng will be built.
 #
-#  (4) Download, patch and build crosstool-ng
+#  (3) Download, patch and build Raspbian.
 #
-#  (5) Configure and build the toolchain.
+#  (4) Blast an image to an SD card that includes Raspbian, LinuxCnC and other tools.
+#
+#     Start by executing bash .build.sh and follow along.  This tool does
+#     try to continue where it left off each time.
+#
 #
 #  License:
 #      Please feel free to use this in any way you see fit.
@@ -41,7 +45,7 @@ set -e
 # Exit immediately for unbound variables.
 set -u
 
-# the process seems to open a lot of files at once. The default is 256. Bump it to 1024.
+# The process seems to open a lot of files at once. The default is 256. Bump it to 2048.
 # Without this you will get an error: no rule to make IBM1388.so
 ulimit -n 2048
 
@@ -51,14 +55,15 @@ ulimit -n 2048
 downloadCrosstoolLatestOpt=y
 
 #
-# Config. Update below here to suite your specific needs.
-#
+# Config. Update below here to suite your specific needs, but all options can be
+# specified from command line arguments. See build.sh -help.
 
 # The crosstool image will be $ImageName.sparseimage
 # The volume will grow as required because of the SPARSE type
 # You can change this with -i <ImageName> but it will always
 # be <ImageName>.sparseimage
 ImageName="CrossToolNG"
+
 # I got tired of rebuilding brew and ct-ng. They now go here
 ImageNameBase="${ImageName}Base"
 
@@ -104,7 +109,7 @@ OutputDir='x-tools'
 
 # Where brew will be placed. An existing brew cannot be used because of
 # interferences with macports or fink.
-# We will also install ct-ng there
+# We will also install ct-ng here.
 BrewHome="/Volumes/${VolumeBase}/brew"
 
 
@@ -114,14 +119,14 @@ BrewHome="/Volumes/${VolumeBase}/brew"
 # help2man is reauired when configuring crosstool-ng
 # wget  is reauired when configuring crosstool-ng
 # wget  requires all kinds of stuff that is auto downloaded by brew. Sorry
-# automake is required to fix a compile issue with gettect
+# automake is required to fix a compile issue with gettext
 # coreutils is for sha512sum
 # sha2 is for sha512
 # bison on osx was too old (2.3) and gcc compiler did not like it
 # findutils is for xargs, needed by make modules in Raspbian
 #
-# for Raspbian tools - libelf gcc ncurses
-# for xconfig - QT   (takes hours)
+# for Raspbian tools - libelf ncurses
+# for xconfig - QT   (takes hours). That would be up to you.
 BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison findutils"
 
 # This is required so brew can be installed elsewhere
@@ -132,7 +137,6 @@ BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man aut
 # export OutputDir='x-tools'
 # ToolchainName='arm-rpi3-eabihf'
 #  export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
-# EXTRA_CFLAGS=-I${PWD}/arch/arm/include/asm
 # export CCPREFIX=/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/bin/arm-rpi3-eabihf-
 # ARCH=arm CROSS_COMPILE=${CCPREFIX} make O=/Volumes/${Volume}/build/kernel
 # make ARCH=arm CROSS_COMPILE=${CCPREFIX} O=/Volumes/${Volume}/build/kernel HOSTCFLAGS="-I/Volumes/BLANK/Raspbian-src/linux/arch/arm/include/asm"
@@ -180,7 +184,7 @@ KWHT="\x1B[37m"
 rc='0'
 
 
-# Where to put Raspbian Source
+# Where to put Raspbian Sourcefrom /Volumes/<Volume>
 RaspbianSrcDir="Raspbian-src"
 
 function showHelp()
@@ -402,7 +406,7 @@ function createCaseSensitiveVolume()
       hdiutil create ${ImageName}           \
                       -volname ${Volume}    \
                       -type SPARSE          \
-                      -size 32             \
+                      -size 32              \
                       -fs HFSX              \
                       -puppetstrings
    fi
@@ -534,96 +538,7 @@ function buildBrewDepends()
       printf "${KGRN}found${KNRM}\n"
    fi
 
-   printf "${KBLU}Checking for ${KNRM}${BrewHome}/opt/gcc/bin/gcc-8 ...${KNRM}"
-   if [ -f "${BrewHome}/opt/gcc/bin/gcc-8" ]; then
-      printf "${KGRN}found${KNRM}\n"
-      printf "${KBLU}Linking gcc-8 tools to gcc${KNRM}\n"
-      rc="n"
-      cd "${BrewHome}/opt/gcc/bin"
-      for fn in `ls *-8`; do
-         newFn=${fn/-8}
-         if [ ! -L "${newFn}" ]; then
-            rc="y"
-            printf "${KNRM}linking ${fn} to ${newFn} ...${KNRM}"
-            ln -sf ${fn} ${newFn}
-            printf "${KGRN}done${KNRM}\n"
-         fi
-      done
-      if [ $rc == "n" ]; then
-         printf "${KGRN}links already in place${KNRM}\n"
-      fi
-   else
-      printf "${KYEL}Not found${KNRM}\n"
-   fi
-
 }
-
-# This was one try. It does not work because --with-libintl-prefix does not
-# I will leave this here because if you search for libintl problems,
-# there are many
-function fixLibIntlTry1()
-{
-   printf "${KBLU}Making gettext libintl available ${KNRM}\n"
-   gettextVersion=$(brew list --versions gettext | awk '{print $2}')
-
-   gettextInclude=${BrewHome}/Cellar/gettext/${gettextVersion}/include
-   gettextLib=${BrewHome}/Cellar/gettext/${gettextVersion}/lib
-   
-   if [ ! -d "$gettextInclude" ]; then
-      printf "${KEDU}Gettext include not found. ${gettextInclude}${KNRM}\n"
-      exit 1
-   fi
-   if [ ! -d "$gettextLib" ]; then
-      printf "${KEDU}Gettext lib not found. ${gettextLib}${KNRM}\n"
-      exit 1
-   fi
-
-   if [ ! -d "$libintlCopyDir" ]; then
-      mkdir "$libintlCopyDir"
-      mkdir "$libintlCopyDir/include"
-      mkdir "$libintlCopyDir/lib"
-
-      printf "${KBLU}Copying gettext include to Brew${KNRM}\n"
-      cd ${gettextInclude}
-      cp libintl.h ${libintlCopyDir}/include/
-
-      printf "${KBLU}Copying gettext lib to Brew${KNRM}\n"
-      cd ${gettextLib}
-      cp libintl.* ${libintlCopyDir}/lib/
-    fi
-
-    printf "${KGRN}Complete${KNRM}\n"
-}
-
-# This did not work either.  libintl.h was not picked up in brew/include
-function fixLibIntlTry2()
-{
-   printf "${KBLU}Making gettext libintl available ${KNRM}\n"
-   gettextVersion=$(brew list --versions gettext | awk '{print $2}')
-
-   if [ ! -d "$gettextInclude" ]; then
-      printf "${KEDU}Gettext include not found. ${gettextInclude}${KNRM}\n"
-      exit 1
-   fi
-   if [ ! -d "$gettextLib" ]; then
-      printf "${KEDU}Gettext lib not found. ${gettextLib}${KNRM}\n"
-      exit 1
-   fi
-
-   if [ ! -f "$brew/include/libintl.h" ]; then
-
-      printf "${KBLU}Copying gettext include to Brew${KNRM}\n"
-      cd ${gettextInclude}
-      cp libintl.h ${$BrewHome}/include/
-
-      printf "${KBLU}Copying gettext lib to Brew${KNRM}\n"
-      cd ${gettextLib}
-      cp libintl.* ${$BrewHome}/lib/
-    fi
-
-    printf "${KGRN}Complete${KNRM}\n"
-}
-
 
 
 function downloadCrossTool()
@@ -688,6 +603,7 @@ function patchConfigFileForVolume()
        sed -i .bak -e's/CrossToolNG/'$Volume'/g' .config
     fi
 }
+
 function patchConfigFileForOutputDir()
 {
     printf "${KBLU}Patching .config file for 'x-tools' in ${PWD}${KNRM}\n"
@@ -695,7 +611,6 @@ function patchConfigFileForOutputDir()
        sed -i .bak2 -e's/x-tools/'$OutputDir'/g' .config
     fi
 }
-
 
 function patchCrosstool()
 {
@@ -967,186 +882,6 @@ elfLibURL="https://github.com/WolfgangSt/libelf.git"
       git clone --depth=1 ${elfLibURL}
    fi
 }
-function downloadAndBuildSharedElfLibrary
-{
-   printf "${KBLU}In downloadAndBuildSharedElfLibrary ${KNRM}\n"
-   elfFile="libelf-0.8.13.tar.gz"
-   elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
-
-   printf "${KBLU}Checking for ${KNRM}libelf.h and libelf.so ... ${KNRM}"
-   if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libelf.so" ]; then
-      printf "${KGRN}found${KNRM}\n"
-      return
-   fi
-   printf "${KYEL}not found${KNRM}\n"
-
-   # remove compiled source so that we can gaurantee building it shared properly
-   removePathWithCheck "${CT_TOP_DIR}/src/libelf-0.8.13" 
-
-   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/libelf-0.8.13 ...${KNRM}"
-   if [ -d "${CT_TOP_DIR}/src/libelf-0.8.13" ]; then
-      printf "${KGRN}found${KNRM}\n"
-      printf "${KNRM}Using existing libelf source${KNRM}\n"
-      printf "${KBLU}Cleaning existing libelf source${KNRM}\n"
-      cd  "${CT_TOP_DIR}/src/libelf-0.8.13" 
-      make clean
-   else
-      printf "${KYEL}not found${KNRM}\n"
-      printf "${KBLU}Checking for saved ${KNRM}${elfFile} ... ${KNRM}"
-      if [ -f "${TarBallSourcesPath}/${elfFile}" ]; then
-         printf "${KGRN}found${KNRM}\n"
-      else
-         printf "${KYEL}not found${KNRM}\n"
-         printf "${KBLU}Downloading ${KNRM}${elfFile} ... ${KNRM}"
-         curl -Lsf "${elfURL}" -o "${TarBallSourcesPath}/${elfFile}"
-         printf "${KGRN}done${KNRM}\n"
-      fi
-      printf "${KBLU}Copying ${elfFile} to working directory ${KNRM}"
-      cp "${TarBallSourcesPath}/${elfFile}" "${CT_TOP_DIR}/src/."
-      printf "${KGRN}done${KNRM}\n"
-      printf "${KBLU}Decompressing ${KNRM}${elfFile} ... ${KNRM}"
-      cd "${CT_TOP_DIR}/src/"
-      tar -xzf "${elfFile}"
-      printf "${KGRN}done${KNRM}\n"
-   fi
-
-    cd "${CT_TOP_DIR}/src/libelf-0.8.13"
-
-    # libelf stupidly does not build shared, so force it to
-    sed -i .bak -e's/mr_cv_target_elf=no/mr_cv_target_elf=yes/g' configure
-
-    CC=${ToolchainName}-gcc \
-    RANLIB=${ToolchainName}-ranlib \
-    LD=${ToolchainName}-ld \
-    ${CT_TOP_DIR}/src/libelf-0.8.13/configure \
-          --enable-shared \
-          --enable-gnu-names \
-          --host=${ToolchainName}  \
-          --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
-          --target=${ToolchainName} \
-          --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
-          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
-
-    make
-
-    make install
-
-   # remove compiled source so that we can gaurantee building it another time  properly
-   removePathWithCheck "${CT_TOP_DIR}/src/libelf-0.8.13" 
-}
-function downloadAndBuildStaticElfLibrary
-{
-   printf "${KBLU}In downloadAndBuildStaticElfLibrary ${KNRM}\n"
-   elfFile="libelf-0.8.13.tar.gz"
-   elfURL="http://www.mr511.de/software/libelf-0.8.13.tar.gz"
-
-   printf "${KBLU}Checking for ${KNRM}libelf.h and libelf.a ... ${KNRM}"
-   if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libelf.a" ]; then
-      printf "${KGRN}found${KNRM}\n"
-      return
-   fi
-   printf "${KYEL}not found${KNRM}\n"
-
-   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/libelf-0.8.13 ...${KNRM}"
-   if [ -d "${CT_TOP_DIR}/src/libelf-0.8.13" ]; then
-      printf "${KGRN}found${KNRM}\n"
-      printf "${KNRM}Using existing elfutils source${KNRM}\n"
-      printf "${KBLU}Cleaning existing libelf source${KNRM}\n"
-      cd  "${CT_TOP_DIR}/src/libelf-0.8.13" 
-      make clean
-   else
-      printf "${KYEL}not found${KNRM}\n"
-      cd "${CT_TOP_DIR}/src/"
-      printf "${KBLU}Checking for saved ${KNRM}${elfFile} ... ${KNRM}"
-      if [ -f "${TarBallSourcesPath}/${elfFile}" ]; then
-         printf "${KGRN}found${KNRM}\n"
-      else
-         printf "${KYEL}not found${KNRM}\n"
-         printf "${KBLU}Downloading ${KNRM}${elfFile} ... ${KNRM}"
-         curl -Lsf "${elfURL}" -o "${TarBallSourcesPath}/${elfFile}"
-         printf "${KGRN}done${KNRM}\n"
-      fi
-      printf "${KBLU}Copying ${elfFile} to working directory ${KNRM}"
-      cp "${TarBallSourcesPath}/${elfFile}" "${CT_TOP_DIR}/src/."
-      printf "${KGRN}done${KNRM}\n"
-      printf "${KBLU}Decompressing ${KNRM}${elfFile} ... ${KNRM}"
-      cd "${CT_TOP_DIR}/src/"
-      tar -xzf "${elfFile}"
-      printf "${KGRN}done${KNRM}\n"
-   fi
-
-    cd "${CT_TOP_DIR}/src/libelf-0.8.13"
-    CC=${ToolchainName}-gcc \
-    RANLIB=${ToolchainName}-ranlib  \
-    LD=${ToolchainName}-ld \
-    ./configure \
-          --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
-          --target=${ToolchainName} \
-          --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
-          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
-
-    make
-
-    make install
-
-}
-function buildElfLibrary
-{
-    cd "${CT_TOP_DIR}/src/libelf"
-    # ./configure --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}
-    ./configure  ARCH=arm  CROSS_COMPILE=${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} CFLAGS=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/include
-    make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}- 
-    make install
-}
-
-function downloadAndBuildElfUtilsLibrary
-{
-   elfUtilsFile="elfutils-0.170.tar.bz2"
-   elfUtilsURL=" https://sourceware.org/ftp/elfutils/0.170/elfutils-0.170.tar.bz2"
-
-   printf "${KBLU}Checking for ${KNRM}libelf.h and libz.a ... ${KNRM}"
-   if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/libelf.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
-      printf "${KGRN}found${KNRM}\n"
-      return
-   fi
-   printf "${KYEL}not found${KNRM}\n"
-
-   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/elfutils-0.17 ...${KNRM}"
-   if [ -d "${CT_TOP_DIR}/src/elfutils-0.170" ]; then
-      printf "${KGRN}found${KNRM}\n"
-      printf "${KNRM}Using existing elfutils source${KNRM}\n"
-   else
-      printf "${KYEL}not found${KNRM}\n"
-      cd "${CT_TOP_DIR}/src/"
-      printf "${KBLU}Checking for saved ${KNRM}${elfUtilsFile} ... ${KNRM}"
-      if [ -f "${TarBallSourcesPath}/${elfUtilsFile}" ]; then
-         printf "${KGRN}found${KNRM}\n"
-      else
-         printf "${KYEL}not found${KNRM}\n"
-         printf "${KBLU}Downloading ${KNRM}${elfUtilsFile} ... ${KNRM}"
-         curl -Lsf "${elfUtilsURL}" -o "${TarBallSourcesPath}/${elfUtilsFile}"
-         printf "${KGRN}done${KNRM}\n"
-      fi
-      printf "${KBLU}Copying ${elfUtilsFile} to working directory ${KNRM}"
-      cp "${TarBallSourcesPath}/${elfUtilsFile}" "${CT_TOP_DIR}/src/."
-      printf "${KGRN}done${KNRM}\n"
-      printf "${KBLU}Decompressing ${KNRM}${elfUtilsFile} ... ${KNRM}"
-      cd "${CT_TOP_DIR}/src/"
-      tar -xzf "${elfUtilsFile}"
-      printf "${KGRN}done${KNRM}\n"
-   fi
-
-    cd "${CT_TOP_DIR}/src/elfutils-0.170"
-     CHOST=${ToolchainName} ./configure \
-          --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
-          --host=${ToolchainName} \
-          --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
-          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
-
-    make
-exit
-    make install
-}
 
 function testBuild
 {
@@ -1263,8 +998,7 @@ function configureRaspbianKernel
    # make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
     make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
-   # This works, but I do not need it now
-     make nconfig
+   make nconfig
 
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
@@ -1449,15 +1183,8 @@ while getopts "$OPTSTRING" opt; do
           fi
           BuildRaspbianOpt=y
 
-          #elfLib is different than ElfUtils
-          #downloadElfLibrary
-          #buildElfLibrary
-
           downloadAndBuildzlib
-          downloadAndBuildStaticElfLibrary
-          downloadAndBuildSharedElfLibrary
 
-          # downloadAndBuildElfUtilsLibrary
           downloadRaspbianKernel
           downloadElfHeaderForOSX
           configureRaspbianKernel
@@ -1527,7 +1254,6 @@ createCaseSensitiveVolume
 
 # Start with brew tools
 buildBrewDepends
-# fixLibIntl
 
 # The 1.23  archive is busted and does not contain CT_Mirror, until
 # it is fixed, use git Latest
