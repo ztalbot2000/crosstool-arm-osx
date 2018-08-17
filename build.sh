@@ -109,7 +109,12 @@ OutputDir='x-tools'
 
 # Where brew will be placed. An existing brew cannot be used because of
 # interferences with macports or fink.
-# We will also install ct-ng here.
+# I spent some time exploring the removal of brew. The thought being
+# there was to much overhead.  This turned out to be false.  Brew has
+# spent a lifetime determining the correct compile options for all
+# of its casks.  The result was almost another brew written from scratch
+# that did not behave as good as brew.
+# 
 BrewHome="/Volumes/${VolumeBase}/brew"
 
 
@@ -130,20 +135,6 @@ BrewHome="/Volumes/${VolumeBase}/brew"
 BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison findutils"
 
 # This is required so brew can be installed elsewhere
-# Comments are for cut and paste during development
-# export Volume=BLANK
-# export BREW_PREFIX=/Volumes/${VolumeBase}/brew
-# export PKG_CONFIG_PATH=${BREW_PREFIX}
-# export OutputDir='x-tools'
-# ToolchainName='arm-rpi3-eabihf'
-#  export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
-# export CCPREFIX=/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/bin/arm-rpi3-eabihf-
-# ARCH=arm CROSS_COMPILE=${CCPREFIX} make O=/Volumes/${Volume}/build/kernel
-# make ARCH=arm CROSS_COMPILE=${CCPREFIX} O=/Volumes/${Volume}/build/kernel HOSTCFLAGS="-I/Volumes/BLANK/Raspbian-src/linux/arch/arm/include/asm"
-#  make ARCH=arm CROSS_COMPILE=${CCPREFIX} O=/Volumes/${Volume}/build/kernel HOSTCFLAGS="--sysroot=/Volumes/BLANK/Raspbian-src/linux -I/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/arm-rpi3-eabihf/sys-include"
- 
-
-
 export BREW_PREFIX=$BrewHome
 export PKG_CONFIG_PATH=$BREW_PREFIX
 
@@ -193,44 +184,44 @@ cat <<'HELP_EOF'
    This shell script is a front end to crosstool-ng to help build a cross compiler on your Mac.  It downloads all the necessary files to build the cross compiler.  It only assumes you have Xcode command line tools installed.
 
    Options:
-      -I <ImageName>  - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
-     -V <Volume>      - Instead of /Volumes/CrosstoolNG/ and
-                                   /Volumes/CrosstoolNGBase/
+     -I <ImageName>  - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
+     -V <Volume>     - Instead of /Volumes/CrosstoolNG/ and
+                                  /Volumes/CrosstoolNGBase/
                                use
                                   /Volumes/<Volume> and
                                   /Volumes/<Volume>Base
                            Note: To do this the .config file is changed automatically
-                                 from CrosstoolNG  to <Volume>
+                                 from CrosstoolNG to <Volume>
 
      -O <OutputDir>  - Instead of /Volumes/<Volume>/x-tools
                                use
                            /Volumes/<Volume>/<OutputDir>
                            Note: To do this the .config file is changed automatically
-                              from x-tools  to <OutputDir>
+                                 from x-tools  to <OutputDir>
 
-      -c Brew         - Remove all installed Brew tools.
-      -c ct-ng        - Run make clean in crosstool-ng path
-      -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
-     -c raspbian      - run make clean in the RaspbianSrcDir.
-      -f <configFile> - The name and path of the config file to use.
-                        Default is arm-rpi3-eabihf.config
-      -b              - Build the cross compiler AFTER building the necessary tools
-                        and you have defined the crosstool-ng .config file.
+     -c Brew         - Remove all installed Brew tools.
+     -c ct-ng        - Run make clean in crosstool-ng path
+     -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
+     -c raspbian     - run make clean in the RaspbianSrcDir.
+     -f <configFile> - The name and path of the config file to use.
+                       Default is arm-rpi3-eabihf.config
+     -b              - Build the cross compiler AFTER building the necessary tools
+                       and you have defined the crosstool-ng .config file.
      -b <last_step+>    * If last_step+ is specified ct-ng is executed with LAST_SUCCESSFUL_STETP_NAME+ 
                         This is accomplished when CT_DEBUG=y and CT_SAVE_STEPS=y
      -b list-steps      * This could also be list-steps to show steps available. 
-     -b raspbian>     - Download and build Raspbian.
-      -t              - After the build, run a Hello World test on it.
-     -T <Toolchain>   - The ToolchainName created.
-                        The default used is: arm-rpi3-eabihf
-                        The actual result is based on what is in your
+     -b raspbian>    - Download and build Raspbian.
+     -t              - After the build, run a Hello World test on it.
+     -T <Toolchain>  - The ToolchainName created.
+                       The default used is: arm-rpi3-eabihf
+                       The actual result is based on what is in your
                            -f <configFile>
-                        The product of which would be: arm-rpi3-eabihf-gcc ...
-     -P               - Just Print the PATH variableH
-     -h               - This menu.
+                       The product of which would be: arm-rpi3-eabihf-gcc ...
+     -P              - Just Print the PATH variableH
+     -h              - This menu.
      -help
-      "none"          - Go for it all if no options given. it will always try to 
-                        continue where it left off
+     "none"          - Go for it all if no options given. it will always try to 
+                       continue where it left off
 
 HELP_EOF
 }
