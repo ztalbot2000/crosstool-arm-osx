@@ -193,34 +193,34 @@ cat <<'HELP_EOF'
    This shell script is a front end to crosstool-ng to help build a cross compiler on your Mac.  It downloads all the necessary files to build the cross compiler.  It only assumes you have Xcode command line tools installed.
 
    Options:
-     -I <ImageName>   - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
+      -I <ImageName>  - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
      -V <Volume>      - Instead of /Volumes/CrosstoolNG/ and
                                    /Volumes/CrosstoolNGBase/
-                              use
+                               use
                                   /Volumes/<Volume> and
                                   /Volumes/<Volume>Base
-                          Note: To do this the .config file is changed automatically
-                                from CrosstoolNG  to <Volume>
+                           Note: To do this the .config file is changed automatically
+                                 from CrosstoolNG  to <Volume>
 
      -O <OutputDir>  - Instead of /Volumes/<Volume>/x-tools
-                        use
+                               use
                            /Volumes/<Volume>/<OutputDir>
-                        Note: To do this the .config file is changed automatically
+                           Note: To do this the .config file is changed automatically
                               from x-tools  to <OutputDir>
 
-     -c Brew          - Remove all installed Brew tools.
-     -c ct-ng         - Run make clean in crosstool-ng path
-     -c realClean     - Unmounts the image and removes it. This destroys EVERYTHING!
+      -c Brew         - Remove all installed Brew tools.
+      -c ct-ng        - Run make clean in crosstool-ng path
+      -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
      -c raspbian      - run make clean in the RaspbianSrcDir.
-     -f <configFile>  - The name and path of the config file to use.
+      -f <configFile> - The name and path of the config file to use.
                         Default is arm-rpi3-eabihf.config
-     -b               - Build the cross compiler AFTER building the necessary tools
+      -b              - Build the cross compiler AFTER building the necessary tools
                         and you have defined the crosstool-ng .config file.
      -b <last_step+>    * If last_step+ is specified ct-ng is executed with LAST_SUCCESSFUL_STETP_NAME+ 
                         This is accomplished when CT_DEBUG=y and CT_SAVE_STEPS=y
      -b list-steps      * This could also be list-steps to show steps available. 
      -b raspbian>     - Download and build Raspbian.
-     -t               - After the build, run a Hello World test on it.
+      -t              - After the build, run a Hello World test on it.
      -T <Toolchain>   - The ToolchainName created.
                         The default used is: arm-rpi3-eabihf
                         The actual result is based on what is in your
@@ -229,7 +229,7 @@ cat <<'HELP_EOF'
      -P               - Just Print the PATH variableH
      -h               - This menu.
      -help
-     "none"           - Go for it all if no options given. it will always try to 
+      "none"          - Go for it all if no options given. it will always try to 
                         continue where it left off
 
 HELP_EOF
@@ -259,7 +259,7 @@ function removePathWithCheck()
 function cleanBrew()
 {
    if [ -f "${BrewHome}/.flagToDeleteBrewLater" ]; then
-      printf "${KBLU}Cleaning our brew tools...${KNRM}\n"
+   printf "${KBLU}Cleaning our brew tools...${KNRM}\n"
       printf "Checking for ${KNRM}${BrewHome} ... "
       if [ -d "${BrewHome}" ]; then
          printf "${KGRN}OK${KNRM}\n"
@@ -761,7 +761,7 @@ CONFIG_EOF
    if [ $OutputDir != 'x-tools' ]; then
       printf "${KNRM} -O ${OutputDir}${KNRM}"
    fi
-   printf "${KBLU}     or${KNRM}\n"
+   printf "${KBLU}or${KNRM}\n"
    printf "PATH=$PATH${KNRM}\n"
    printf "cd ${CT_TOP_DIR}${KNRM}\n"
    printf "ct-ng build${KNRM}\n"
@@ -893,16 +893,16 @@ function testBuild
       return
    fi
 
-   cat <<'   HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
-      #include <iostream>
-      using namespace std;
+cat <<'HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
+#include <iostream>
+using namespace std;
 
-      int main ()
-      {
-        cout << "Hello World!";
-        return 0;
-      }
-   HELLO_WORLD_EOF
+int main ()
+{
+  cout << "Hello World!";
+  return 0;
+}
+HELLO_WORLD_EOF
 
    PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$PATH
 
@@ -1199,7 +1199,7 @@ while getopts "$OPTSTRING" opt; do
           testBuild   # testBuild sets rc
           if [ ${rc} == '0' ]; then
              printf "${KGRN}Wahoo ! it works!! ${KNRM}\n"
-             exit 0
+          exit 0
           else
              printf "${KRED}Boooo ! it failed :-( ${KNRM}\n"
              exit -1
