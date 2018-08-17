@@ -23,7 +23,7 @@
 #  The process:
 #
 #  (1) Create a case sensitive volume using hdiutil and mount it to /Volumes/$Volume[Base]
-#      where brew and crosstool-ng will be placed so as not to interfere
+#      where missing gnu tools  and crosstool-ng will be placed so as not to interfere
 #      with any existing installations
 #
 #  (2) Create another case sensitive volume where the cross compilere created with
@@ -45,6 +45,10 @@ set -e
 # Exit immediately for unbound variables.
 set -u
 
+# During compile of OSX tools, log output to console
+# Either "none" or "full"
+LoggingOpt="none"
+
 # The process seems to open a lot of files at once. The default is 256. Bump it to 2048.
 # Without this you will get an error: no rule to make IBM1388.so
 ulimit -n 2048
@@ -64,7 +68,7 @@ downloadCrosstoolLatestOpt=y
 # be <ImageName>.sparseimage
 ImageName="CrossToolNG"
 
-# I got tired of rebuilding brew and ct-ng. They now go here
+# I got tired of rebuilding missing OSX tools  and ct-ng. They now go here
 ImageNameBase="${ImageName}Base"
 
 #
@@ -104,13 +108,12 @@ TarBallSourcesPath="/Volumes/${VolumeBase}/sources"
 # changed with the -O <OutputDir> option
 OutputDir='x-tools'
 
-
-
-
-# Where brew will be placed. An existing brew cannot be used because of
-# interferences with macports or fink.
+# These are tools missing from OSX and/or do not have the needed functionality
 # We will also install ct-ng here.
-BrewHome="/Volumes/${VolumeBase}/brew"
+ToolsPath="/Volumes/${VolumeBase}/tools"
+ToolsLibPath="${ToolsPath}/lib"
+ToolsIncludePath="${ToolsPath}/include"
+ToolsBinPath="${ToolsPath}/bin"
 
 
 # Binutils is for objcopy, objdump, ranlib, readelf
@@ -118,7 +121,6 @@ BrewHome="/Volumes/${VolumeBase}/brew"
 # xz is reauired when configuring crosstool-ng
 # help2man is reauired when configuring crosstool-ng
 # wget  is reauired when configuring crosstool-ng
-# wget  requires all kinds of stuff that is auto downloaded by brew. Sorry
 # automake is required to fix a compile issue with gettext
 # coreutils is for sha512sum
 # sha2 is for sha512
@@ -127,25 +129,19 @@ BrewHome="/Volumes/${VolumeBase}/brew"
 #
 # for Raspbian tools - libelf ncurses
 # for xconfig - QT   (takes hours). That would be up to you.
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison findutils"
 
 # This is required so brew can be installed elsewhere
 # Comments are for cut and paste during development
 # export Volume=BLANK
-# export BREW_PREFIX=/Volumes/${VolumeBase}/brew
-# export PKG_CONFIG_PATH=${BREW_PREFIX}
 # export OutputDir='x-tools'
 # ToolchainName='arm-rpi3-eabihf'
-#  export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+#  export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$ToolsBinPath:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 # export CCPREFIX=/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/bin/arm-rpi3-eabihf-
 # ARCH=arm CROSS_COMPILE=${CCPREFIX} make O=/Volumes/${Volume}/build/kernel
 # make ARCH=arm CROSS_COMPILE=${CCPREFIX} O=/Volumes/${Volume}/build/kernel HOSTCFLAGS="-I/Volumes/BLANK/Raspbian-src/linux/arch/arm/include/asm"
 #  make ARCH=arm CROSS_COMPILE=${CCPREFIX} O=/Volumes/${Volume}/build/kernel HOSTCFLAGS="--sysroot=/Volumes/BLANK/Raspbian-src/linux -I/Volumes/BLANK/x-tools2/arm-rpi3-eabihf/arm-rpi3-eabihf/sys-include"
  
 
-
-export BREW_PREFIX=$BrewHome
-export PKG_CONFIG_PATH=$BREW_PREFIX
 
 # This is the crosstools-ng version used by curl to fetch relased version
 # of crosstools-ng. I don't know if it works with previous versions and
@@ -187,40 +183,649 @@ rc='0'
 # Where to put Raspbian Sourcefrom /Volumes/<Volume>
 RaspbianSrcDir="Raspbian-src"
 
+function waitForPid()
+{
+   pid=$1 
+   spindleCount=0
+   spindleArray=("|" "/" "-" "\\")
+
+   while ps -p $pid >/dev/null; do
+      sleep 0.5
+      printf  "\r${KGRN}" 
+      printf ${spindleArray[$spindleCount]}
+      printf  " ${KNRM}"
+      spindleCount=$((spindleCount + 1))
+      if [[ $spindleCount -eq ${#spindleArray[*]} ]]; then
+         spindleCount=0
+      fi
+   done
+   printf "\r${KNRM}Done\n"
+
+   # Get the true return code of the process
+   wait $pid
+
+   # Set our global return code of the process
+   rc=$?
+}
+
+function buildAndInstallOSXTool()
+{
+   pkgURL=$1
+   pkg=$2
+   checkFile=$3
+   srcDir=$4
+   name=$5
+   configCmdOptions=$6
+
+   printf "${KBLU}Checking for ${KNRM}${name}... "
+   if [ -f "${ToolsPath}/${checkFile}" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      return
+   fi
+   printf "${KYEL}not found${KNRM}\n"
+
+   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/${srcDir} ... "
+   if [ -d "${CT_TOP_DIR}/src/${srcDir}" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      printf "${KNRM}Using existing ${name} source${KNRM}\n"
+   else
+      printf "${KYEL}not found${KNRM}\n"
+      cd "${CT_TOP_DIR}/src/"
+      printf "${KBLU}Checking for saved ${KNRM}${pkg} ... "
+      if [ -f "${TarBallSourcesPath}/${pkg}" ]; then
+         printf "${KGRN}found${KNRM}\n"
+      else
+         printf "${KYEL}not found${KNRM}\n"
+         printf "${KBLU}Downloading ${KNRM}${pkg} ... "
+         curl -Lsf "${pkgURL}" -o "${TarBallSourcesPath}/${pkg}"
+         printf "${KGRN}done${KNRM}\n"
+      fi
+      printf "${KBLU}Decompressing ${KNRM}${pkg} ... "
+      tar -xzf "${TarBallSourcesPath}/${pkg}" -C "${CT_TOP_DIR}/src"
+      printf "${KGRN}done${KNRM}\n"
+   fi
+
+   cd "${CT_TOP_DIR}/src/${srcDir}"
+
+   #
+   #   Configure
+   #
+
+   printf "${KBLU}Configuring ${KNRM}${name}. Logging to config.log\n"
+
+   # We will catch any error
+   set +e
+
+   if [ "${LoggingOpt}" == "none" ]; then
+      CFLAGS=-I${ToolsIncludePath}   \
+      CPPFLAGS=-I${ToolsIncludePath}  \
+      LDFLAGS=-L${ToolsLibPath}      \
+      ./configure   ${configCmdOptions}  > config.log 2>&1 &
+
+      pid="$!"
+      # printf "configure pid is $pid\n"
+      waitForPid "$pid"
+   else
+      CFLAGS=-I${ToolsIncludePath}   \
+      CPPFLAGS=-I${ToolsIncludePath}  \
+      LDFLAGS=-L${ToolsLibPath}      \
+      ./configure  $configCmdOptions > config.log 
+      rc=$?
+   fi
+
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} Check the config.log for more info\n"
+      exit $rc
+   fi
+
+   #
+   #   Build
+   #
+
+   numberOfCores=$(sysctl -n hw.ncpu)
+
+   printf "${KBLU}Building ${KNRM}${name}. Logging to build.log\n"
+   if [ "${LoggingOpt}" == "none" ]; then
+      # make -j$numberOfCores > build.log 2>&1 &
+      make > build.log 2>&1 &
+
+      pid="$!"
+      # printf "Build pid is $pid\n"
+      waitForPid "$pid"
+   else
+      make > build.log 
+      rc=$?
+   fi
+
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} Check the build.log for more info\n"
+      exit $rc
+   fi
+
+   #
+   #   Install
+   #
+
+   printf "${KBLU}Installing ${KNRM}${name}. Logging to install.log\n"
+   if [ "${LoggingOpt}" == "none" ]; then
+      make install > install.log 2>&1
+
+      pid="$!"
+      # printf "Install pid is $pid\n"
+      waitForPid "$pid"
+   else
+      make install > install.log
+      rc=$?
+   fi
+
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} Check the install.log for more info\n"
+      exit $rc
+   fi
+
+   # There should not be any errors past this
+   set -e
+
+}
+
+function buildM4ForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/m4/m4-1.4.18.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/m4"
+   srcDir=${pkg%.tar.*}
+   name="m4"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+
+function buildReadlineForOSX()
+{
+   pkgURL="https://ftp.gnu.org/gnu/readline/readline-7.0.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="lib/libreadline.a"
+   srcDir=${pkg%.tar.*}
+   name="readline"
+   configCmdOptions="--with-curses --prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+
+function buildGMPForOSX()
+{
+   pkgURL="https://ftp.gnu.org/gnu/gmp/gmp-6.1.2.tar.bz2"
+   pkg="${pkgURL##*/}"
+   checkFile="lib/libgmp.a"
+   srcDir=${pkg%.tar.*}
+   name="gmp"
+   configCmdOptions=" --prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+
+function buildLibISLForOSX()
+{
+
+   pkgURL="http://isl.gforge.inria.fr/isl-0.18.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="lib/libisl.a"
+   srcDir=${pkg%.tar.*}
+   name="libisl"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildLibIconvForOSX()
+{
+   pkgURL="https://ftp.gnu.org/gnu/libiconv/libiconv-1.15.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="lib/libiconv.la"
+   srcDir=${pkg%.tar.*}
+   name="libiconv"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildPkgConfigForOSX()
+{
+   pkgURL="https://pkg-config.freedesktop.org/releases/pkg-config-0.29.2.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/pkg-config"
+   srcDir=${pkg%.tar.*}
+   name="pkg-config"
+   configCmdOptions="--prefix=${ToolsPath} --disable-debug --with-pc-path=${ToolsPath}/lib/pkgconfig:${ToolsPath}/share/pkgconfig:/usr/lib/pkgconfig --with-internal-glib"
+
+   touch ${ToolsIncludePath}/malloc.h
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+   rm ${ToolsIncludePath}/malloc.h
+}
+function buildGettextForOSX()
+{  
+   pkgURL="http://gnu.mirror.globo.tech/gettext/gettext-0.19.8.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="lib/libasprintf.a"
+   srcDir=${pkg%.tar.*}
+   name="gettext"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildLibPthForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/pth/pth-2.0.7.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="lib/libpth.a"
+   srcDir=${pkg%.tar.*}
+   name="pth"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildFindutilsForOSX()
+{
+   pkgURL="https://ftp.gnu.org/gnu/findutils/findutils-4.6.0.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/find"
+   srcDir=${pkg%.tar.*}
+   name="findUtils"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildXZForOSX()
+{
+   pkgURL="https://tukaani.org/xz/xz-5.2.4.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/xz"
+   srcDir=${pkg%.tar.*}
+   name="xz"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildMPFRForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/mpfr/mpfr-4.0.1.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="lib/libmpfr.a"
+   srcDir=${pkg%.tar.*}
+   name="mpfr"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildMPCForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/mpc/mpc-1.1.0.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="lib/libmpc.a"
+   srcDir=${pkg%.tar.*}
+   name="mpc"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildBisonForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/bison/bison-3.0.5.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/bison"
+   srcDir=${pkg%.tar.*}
+   name="bison"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+buildBashForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/bash/bash-4.4.18.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/bash"
+   srcDir=${pkg%.tar.*}
+   name="bash"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildSedForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/sed/sed-4.5.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/sed"
+   srcDir=${pkg%.tar.*}
+   name="sed"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildGawkForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/gawk/gawk-4.2.1.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/gawk"
+   srcDir=${pkg%.tar.*}
+   name="gawk"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildHelp2manForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/help2man/help2man-1.47.6.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/help2man"
+   srcDir=${pkg%.tar.*}
+   name="help2man"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildGrepForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/grep/grep-3.1.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/grep"
+   srcDir=${pkg%.tar.*}
+   name="grep"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildLibtoolForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/libtool/libtool-2.4.6.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/libtoolize"
+   srcDir=${pkg%.tar.*}
+   name="libtool"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildAutoconfForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/autoconf/autoconf-2.69.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/autoconf"
+   srcDir=${pkg%.tar.*}
+   name="autoconf"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildAutomakeForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/automake/automake-1.16.1.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/automake"
+   srcDir=${pkg%.tar.*}
+   name="automake"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildWgetForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/wget/wget-1.19.5.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/wget"
+   srcDir=${pkg%.tar.*}
+   name="wget"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildWgetForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/wget/wget-1.19.5.tar.gz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/wget"
+   srcDir=${pkg%.tar.*}
+   name="wget"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildBinutilsForOSX()
+{
+   pkgURL="http://gnu.mirror.globo.tech/binutils/binutils-2.30.tar.xz"
+   pkg="${pkgURL##*/}"
+   checkFile="bin/objcopy"
+   srcDir=${pkg%.tar.*}
+   name="binutils"
+   configCmdOptions="--prefix=${ToolsPath}"
+
+   buildAndInstallOSXTool "${pkgURL}" "${pkg}" "${checkFile}" "${srcDir}" "${name}" "${configCmdOptions}"
+}
+function buildMissingOSXTools()
+{
+   export PATH="${ToolsBinPath}:${PATH}"
+   printf "${KBLU}Checking for our own tools path ${KNRM} ${ToolsPath} ... "
+   if [ -d "${ToolsPath}" ]; then
+      printf "${KGRN}found${KNRM}\n"
+   else
+      printf "${KYEL}not found${KNRM}\n"
+      printf "${KBLU}Creating our own tools path ${KNRM}${ToolsPath} ... "
+      mkdir "${ToolsPath}" 
+      printf "${KGRN}done${KNRM}\n"
+   fi
+
+   printf "${KBLU}Checking for our own tools path/include ${KNRM} ${ToolsPath}/include ... "
+   if [ -d "${ToolsIncludePath}" ]; then
+      printf "${KGRN}found${KNRM}\n"
+   else
+      printf "${KYEL}not found${KNRM}\n"
+      printf "${KBLU}Creating our own tools path/include ${KNRM}${ToolsIncludePath} ... "
+      mkdir "${ToolsIncludePath}" 
+      printf "${KGRN}done${KNRM}\n"
+   fi
+
+   printf "${KBLU}Checking for our own tools path/lib ${KNRM} ${ToolsLibPath} ... "
+   if [ -d "${ToolsLibPath}" ]; then
+      printf "${KGRN}found${KNRM}\n"
+   else
+      printf "${KYEL}not found${KNRM}\n"
+      printf "${KBLU}Creating our own tools path/lib ${KNRM}${ToolsLibPath} ... "
+      mkdir "${ToolsLibPath}" 
+      printf "${KGRN}done${KNRM}\n"
+   fi
+
+   printf "${KBLU}Checking for our own tools path/bin ${KNRM} ${ToolsBinPath} ... "
+   if [ -d "${ToolsBinPath}" ]; then
+      printf "${KGRN}found${KNRM}\n"
+   else
+      printf "${KYEL}not found${KNRM}\n"
+      printf "${KBLU}Creating our own tools path/bin ${KNRM}${ToolsBinPath} ... "
+      mkdir "${ToolsBinPath}" 
+      printf "${KGRN}done${KNRM}\n"
+   fi
+
+   # M4 is for Bison
+   buildM4ForOSX
+
+   # Readline is for GMP
+   buildReadlineForOSX
+   # ISL needs GMP
+   buildGMPForOSX
+   # FindUtils needs ISL
+   buildLibISLForOSX
+
+   # FindUtils needs Iconv
+   # wget needs Iconv
+   buildLibIconvForOSX
+
+   # wget says ours is to old
+   buildPkgConfigForOSX
+
+   # gettext is for ct-ng
+   buildGettextForOSX
+
+   # FindUtils needs libpth
+   buildLibPthForOSX
+
+   buildFindutilsForOSX
+
+
+   buildXZForOSX
+   buildMPFRForOSX
+   buildMPCForOSX
+
+   buildBisonForOSX
+
+   # Too old for ct-ng
+   buildBashForOSX
+
+   buildSedForOSX
+
+   # help2man says awk is to old
+   buildGawkForOSX
+
+   # Required for ct-ng
+   buildHelp2manForOSX
+
+   buildGrepForOSX
+
+   # Missing
+   buildLibtoolForOSX
+
+   # Missing
+   buildAutoconfForOSX
+   # Missing
+   buildAutomakeForOSX
+
+   # Missing for ct-ng
+   #buildWgetForOSX
+
+   # Missing objcopy for ct-ng
+   buildBinutilsForOSX
+
+}
+
+
+# This is a lit of all MacPorts tools to build gcc
+# The list is as long for HomeBrew
+
+
+# Locations where to get the above sources
+# DO NOT CHANGE THE ORDER. They must be the same
+declare -a MacPortsToolsToBuildGCC=(                                                    \
+       "gcc_select-0.1"                                                      \
+       "libmacho-headers-895"                                                \
+       "db48-4.8.30"                                                         \
+       "python_select-0.3"                                                   \
+       "python2_select-0.0"                                                  \
+       "lzo2-2.10"                                                           \
+       "expat-2.2.5"                                                         \
+       "lz4-1.8.2"                                                           \
+       "libffi-3.2.1"                                                        \
+       "gpatch-2.7.6"                                                        \
+       "http://gnu.mirror.globo.tech/m4/m4-1.4.18.tar.gz"                    \
+       "https://ftp.gnu.org/gnu/readline/readline-7.0.tar.gz"                \
+       "https://ftp.gnu.org/gnu/gmp/gmp-6.1.2.tar.bz2"                       \
+       "http://isl.gforge.inria.fr/isl-0.18.tar.gz"                          \
+       "bzip2-1.0.6"                                                         \
+       "Ncurses-5.3"                                                         \
+       "gdbm-1.16"                                                           \
+       "perl5.26-5.26.2"                                                     \
+       "p5.26-locale-gettext 1.70.0"                                         \
+       "libedit-20170329-3.1"                                                \
+       "gperf-3.1"                                                           \
+       "https://ftp.gnu.org/gnu/libiconv/libiconv-1.15.tar.gz"               \
+       "https://pkg-config.freedesktop.org/releases/pkg-config-0.29.2.tar.gz" \
+       "gettext-0.19.8.1"                                                    \
+       "http://gnu.mirror.globo.tech/pth/pth-2.0.7.tar.gz"                   \
+       "https://ftp.gnu.org/gnu/findutils/findutils-4.6.0.tar.gz"            \
+       "gmake-4.2.1"                                                         \
+       "https://tukaani.org/xz/xz-5.2.4.tar.gz"                              \
+       "http://gnu.mirror.globo.tech/mpfr/mpfr-4.0.1.tar.xz"                 \
+       "libmpc-1.1.0"                                                        \
+       "libgcc8-8.2.0"                                                       \
+       "libgcc-1.0"                                                          \
+       "libgcc45-4.5.4"                                                      \
+       "libgcc7-7.3.0"                                                       \
+       "libgcc6-6.4.0"                                                       \
+       "libunwind-headers-5.0.1"                                             \
+       "cctools-895"                                                         \
+       "libcxx 5.0.1"                                                        \
+       "ld64-latest 274.2"                                                   \
+       "bison-runtime"                                                       \
+       "http://gnu.mirror.globo.tech/bison/bison-3.0.5.tar.gz"               \
+       "http://gnu.mirror.globo.tech/bash/bash-4.4.18.tar.gz"                \
+       "diffutils-3.6"                                                       \
+       "coreutils-8.30"                                                      \
+       "http://gnu.mirror.globo.tech/gawk/gawk-4.2.1.tar.xz"                 \
+       "http://ftp.gnu.org/gnu/sed/sed-4.5.tar.xz"                           \
+       "http://gnu.mirror.globo.tech/help2man/help2man-1.47.6.tar.xz"        \
+       "texinfo-6.5"                                                         \
+       "gzip-1.9"                                                            \
+       "unzip 6.0"                                                           \
+       "xattr-0.1"                                                           \
+       "http://gnu.mirror.globo.tech/libtool/libtool-2.4.6.tar.xz"           \
+       "http://gnu.mirror.globo.tech/autoconf/autoconf-2.69.tar.xz"          \
+       "http://gnu.mirror.globo.tech/automake/automake-1.16.1.tar.xz"        \
+       "libunistring-0.9.10"                                                 \
+       "libidn2-2.0.5"                                                       \
+       "libuv-1.22.0"                                                        \
+       "gnutar-1.29"                                                         \
+       "zlib-1.2.11"                                                         \
+       "http://gnu.mirror.globo.tech/wget/wget-1.19.5.tar.gz"                \
+       "sqlite3-3.24.0"                                                      \
+       "openssl-1.0.2o"                                                      \
+       "xar-1.6.1"                                                           \
+       "libxml2-2.9.7"                                                       \
+       "http://gnu.mirror.globo.tech/binutils/binutils-2.30.tar.xz"          \
+       "bzip2-1.0.6"                                                         \
+       "curl-ca-bundle-7.61.0"                                               \
+       "curl 7.61.0"                                                         \
+       "cmake-3.12.1"                                                        \
+       "llvm-5.0-5.0.2"                                                      \
+       "ld64-latest-274.2"                                                   \
+       "ld64-3"                                                              \
+       "libarchive-3.3.2"                                                    \
+       "python27-2.7.15"                                                     \
+       "libpsl-0.20.2-20180522"                                              \
+       "pcre-8.42"                                                           \
+       "glib2-2.56.1"                                                        \
+       "http://gnu.mirror.globo.tech/grep/grep-3.1.tar.xz"                   \
+       "gcc43-4.3.6"                                                         \
+       "Glibc-2.2.5"                                                         \
+)
+
+
 function showHelp()
 {
 cat <<'HELP_EOF'
    This shell script is a front end to crosstool-ng to help build a cross compiler on your Mac.  It downloads all the necessary files to build the cross compiler.  It only assumes you have Xcode command line tools installed.
 
    Options:
-      -I <ImageName>  - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
+     -I <ImageName>   - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
      -V <Volume>      - Instead of /Volumes/CrosstoolNG/ and
                                    /Volumes/CrosstoolNGBase/
-                               use
+                              use
                                   /Volumes/<Volume> and
                                   /Volumes/<Volume>Base
-                           Note: To do this the .config file is changed automatically
-                                 from CrosstoolNG  to <Volume>
+                          Note: To do this the .config file is changed automatically
+                                from CrosstoolNG  to <Volume>
 
      -O <OutputDir>  - Instead of /Volumes/<Volume>/x-tools
-                               use
+                        use
                            /Volumes/<Volume>/<OutputDir>
-                           Note: To do this the .config file is changed automatically
+                        Note: To do this the .config file is changed automatically
                               from x-tools  to <OutputDir>
 
-      -c Brew         - Remove all installed Brew tools.
-      -c ct-ng        - Run make clean in crosstool-ng path
-      -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
+     -c ct-ng         - Run make clean in crosstool-ng path
+     -c realClean     - Unmounts the image and removes it. This destroys EVERYTHING!
      -c raspbian      - run make clean in the RaspbianSrcDir.
-      -f <configFile> - The name and path of the config file to use.
+     -f <configFile>  - The name and path of the config file to use.
                         Default is arm-rpi3-eabihf.config
-      -b              - Build the cross compiler AFTER building the necessary tools
+     -b               - Build the cross compiler AFTER building the necessary tools
                         and you have defined the crosstool-ng .config file.
      -b <last_step+>    * If last_step+ is specified ct-ng is executed with LAST_SUCCESSFUL_STETP_NAME+ 
                         This is accomplished when CT_DEBUG=y and CT_SAVE_STEPS=y
      -b list-steps      * This could also be list-steps to show steps available. 
      -b raspbian>     - Download and build Raspbian.
-      -t              - After the build, run a Hello World test on it.
+     -t               - After the build, run a Hello World test on it.
      -T <Toolchain>   - The ToolchainName created.
                         The default used is: arm-rpi3-eabihf
                         The actual result is based on what is in your
@@ -229,7 +834,9 @@ cat <<'HELP_EOF'
      -P               - Just Print the PATH variableH
      -h               - This menu.
      -help
-      "none"          - Go for it all if no options given. it will always try to 
+     -L               - For build of OSX tools, log output to stdout instead of to files
+     -Logging           default is to files
+     "none"           - Go for it all if no options given. it will always try to 
                         continue where it left off
 
 HELP_EOF
@@ -253,25 +860,6 @@ function removePathWithCheck()
       printf "  ${KGRN}-Done${KNRM}\n"
    else
       printf "  ${KGRN}-Not found${KNRM}\n"
-   fi
-}
-
-function cleanBrew()
-{
-   if [ -f "${BrewHome}/.flagToDeleteBrewLater" ]; then
-   printf "${KBLU}Cleaning our brew tools...${KNRM}\n"
-      printf "Checking for ${KNRM}${BrewHome} ... "
-      if [ -d "${BrewHome}" ]; then
-         printf "${KGRN}OK${KNRM}\n"
-      else
-         printf "${KRED}not found${KNRM}\n"
-         exit -1
-      fi
-
-      printf "${KBLU}Cleaning brew cache ... ${KNRM}"
-      ${BrewHome}/bin/brew cleanup --cache
-      printf "${KGRN}  -done${KNRM}\n"
-      removePathWithCheck  "${BrewHome}"
    fi
 }
 
@@ -315,8 +903,6 @@ function raspbianClean()
 }
 function realClean()
 {
-   # We need to clean brew as it purges brew's cache
-   cleanBrew
 
    # Remove our elf.h
    cleanupElfHeaderForOSX
@@ -342,7 +928,7 @@ function createCaseSensitiveVolumeBase()
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${VolumeDir}${KNRM}\n"
       
        # Give a couple of seconds for the user to react
-       sleep 3
+       sleep 1
 
        return;
     fi
@@ -353,7 +939,7 @@ function createCaseSensitiveVolumeBase()
       printf "         This file will be mounted as ${VolumeDir}${KNRM}\n"
       
       # Give a couple of seconds for the user to react
-      sleep 3
+      sleep 1
 
    else
       hdiutil create ${ImageNameBase}        \
@@ -389,7 +975,7 @@ function createCaseSensitiveVolume()
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${VolumeDir}${KNRM}\n"
       
        # Give a couple of seconds for the user to react
-       sleep 3
+       sleep 1
 
        return;
     fi
@@ -400,7 +986,7 @@ function createCaseSensitiveVolume()
       printf "         This file will be mounted as ${VolumeDir}${KNRM}\n"
       
       # Give a couple of seconds for the user to react
-      sleep 3
+      sleep 1
 
    else
       hdiutil create ${ImageName}           \
@@ -413,133 +999,6 @@ function createCaseSensitiveVolume()
 
    hdiutil mount ${ImageNameExt}
 }
-
-#
-# If $BrewHome does not alread contain HomeBrew, download and install it. 
-# Install the required HomeBrew packages.
-#
-function buildBrewDepends()
-{
-   printf "${KBLU}Checking for HomeBrew tools...${KNRM}\n"
-   if [ ! -d "$BrewHome" ]; then
-      printf "Installing HomeBrew tools...${KNRM}\n"
-      mkdir "$BrewHome"
-      cd "$BrewHome"
-      curl -Lsf http://github.com/mxcl/homebrew/tarball/master | tar xz --strip 1 -C${BrewHome}
-
-      touch "${BrewHome}/.flagToDeleteBrewLater"
-   else
-      printf "   - Using existing Brew installation in ${BrewHome}${KNRM}\n"
-   fi
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
-
-   printf "${KBLU}Updating HomeBrew tools...${KNRM}\n"
-   printf "${KRED}Ignore the ERROR: could not link${KNRM}\n"
-   printf "${KRED}Ignore the message "
-   printf "Please delete these paths and run brew update${KNRM}\n"
-   printf "They are created by brew as it is not in /local or with sudo${KNRM}\n"
-   printf "\n"
-
-
-   $BrewHome/bin/brew update
-
-   # Do not Exit immediately if a command exits with a non-zero status.
-   set +e
-
-   # $BrewHome/bin/brew install --with-default-names $BrewTools && true
-   # $BrewHome/bin/brew install $BrewTools --with-real-names && true
-   $BrewHome/bin/brew install $BrewTools --with-default-names && true
-
-   # change to Exit immediately if a command exits with a non-zero status.
-   set -e
-
-   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/gsha512sum ...${KNRM}"
-   if [ ! -f $BrewHome/bin/gsha512sum ]; then
-      printf "${KRED}Not found${KNRM}\n"
-      exit 1
-   fi
-   printf "${KGRN}found${KNRM}\n"
-   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sha512sum ...${KNRM}"
-   if [ ! -f $BrewHome/bin/gsha512sum ]; then
-      printf "${KNRM}\nLinking gsha512sum to sha512sum${KNRM}\n"
-      ln -s $BrewHome/bin/gsha512sum $BrewHome/bin/sha512sum
-   else
-      printf "${KGRN}found${KNRM}\n"
-   fi
-
-   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/gsha256sum ...${KNRM}"
-   if [ ! -f $BrewHome/bin/gsha256sum ]; then
-      printf "${KRED}Not found${KNRM}\n"
-      exit 1
-   fi
-   printf "${KGRN}found${KNRM}\n"
-
-   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sha256sum ...${KNRM}"
-   if [ ! -f $BrewHome/bin/gsha256sum ]; then
-      printf "${KNRM}\nLinking gsha256sum to sha256sum${KNRM}\n"
-      ln -s $BrewHome/bin/gsha256sum $BrewHome/bin/sha256sum
-   else
-      printf "${KGRN}found${KNRM}\n"
-   fi
-
-   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/stat ...${KNRM}"
-   if [ ! -f $BrewHome/bin/gstat ]; then
-      printf "${KNRM}\nLinking gstat to stat${KNRM}\n"
-      ln -s $BrewHome/bin/gstat $BrewHome/bin/stat
-   else
-      printf "${KGRN}found${KNRM}\n"
-   fi
-
-#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/readelf ...${KNRM}"
-#  if [ ! -f $BrewHome/bin/readelf ]; then
-#     printf "${KNRM}\nLinking greadelf to readelf${KNRM}\n"
-#     ln -s $BrewHome/bin/greadelf $BrewHome/bin/readelf
-#  else
-#     printf "${KGRN}found${KNRM}\n"
-#  fi
-
-#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/ranlib ...${KNRM}"
-#  if [ ! -f $BrewHome/bin/ranlib ]; then
-#     printf "${KNRM}\nLinking granlib to ranlib${KNRM}\n"
-#     ln -s $BrewHome/bin/granlib $BrewHome/bin/ranlib
-#  else
-#     printf "${KGRN}found${KNRM}\n"
-#  fi
-#
-#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/objcopy ...${KNRM}"
-#  if [ ! -f $BrewHome/bin/objcopy ]; then
-#     printf "${KNRM}\nLinking gobjcopy to objcopy${KNRM}\n"
-#     ln -s $BrewHome/bin/gobjcopy $BrewHome/bin/objcopy
-#  else
-#     printf "${KGRN}found${KNRM}\n"
-#  fi
-#
-#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/objdump ...${KNRM}"
-#  if [ ! -f $BrewHome/bin/objdump ]; then
-#     printf "${KNRM}\nLinking gobjdump to objdump${KNRM}\n"
-#     ln -s $BrewHome/bin/gobjdump $BrewHome/bin/objdump
-#  else
-#     printf "${KGRN}found${KNRM}\n"
-#  fi
-#
-#  printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sed ...${KNRM}"
-#  if [ ! -f $BrewHome/bin/sed ]; then
-#     printf "${KNRM}\nLinking gsed to sed${KNRM}\n"
-#     ln -s $BrewHome/bin/gsed $BrewHome/bin/sed
-#  else
-#     printf "${KGRN}found${KNRM}\n"
-#  fi
-
-   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/grep ...${KNRM}"
-   if [ ! -f $BrewHome/bin/grep ]; then
-      printf "${KNRM}\nLinking ggrep to grep${KNRM}\n"
-      ln -s $BrewHome/bin/ggrep $BrewHome/bin/grep
-   else
-      printf "${KGRN}found${KNRM}\n"
-   fi
-
-}
-
 
 function downloadCrossTool()
 {
@@ -643,18 +1102,20 @@ function buildCrosstool()
 
 
    # It is strange that gettext is put in opt
-   gettextDir=${BrewHome}/opt/gettext
+   gettextDir=${ToolsLibPath}/gettext
    
    printf "${KBLU} Executing configure --with-libintl-prefix=$gettextDir ${KNRM}\n"
+   printf "${KBLU} Executing configure  ${KNRM}\n"
 
    # export LDFLAGS
    # export CPPFLAGS
 
    # --with-libintl-prefix should have been enough, but it seems LDFLAGS and
    # CPPFLAGS is required too to fix libintl.h not found
-   LDFLAGS="  -L${BrewHome}/opt/gettext/lib -lintl " \
-   CPPFLAGS=" -I${BrewHome}/opt/gettext/include" \
-   ./configure  --with-libintl-prefix=$gettextDir --prefix="/Volumes/${VolumeBase}/ctng"
+   LDFLAGS="  -L${ToolsLibPath} -lintl " \
+   CPPFLAGS=" -I${ToolsIncludePath} " \
+    ./configure  --with-libintl-prefix=$gettextDir --prefix="/Volumes/${VolumeBase}/ctng"
+
 
    # These are not needed by crosstool-ng version 1.23.0
    # 
@@ -744,7 +1205,7 @@ CONFIG_EOF
    # Give the user a chance to digest this
    sleep 5
 
-   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$ToolsBinPath:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    # Use 'menuconfig' target for the fine tuning.
 
@@ -761,7 +1222,7 @@ CONFIG_EOF
    if [ $OutputDir != 'x-tools' ]; then
       printf "${KNRM} -O ${OutputDir}${KNRM}"
    fi
-   printf "${KBLU}or${KNRM}\n"
+   printf "${KBLU}     or${KNRM}\n"
    printf "PATH=$PATH${KNRM}\n"
    printf "cd ${CT_TOP_DIR}${KNRM}\n"
    printf "ct-ng build${KNRM}\n"
@@ -796,7 +1257,7 @@ function buildToolchain()
    else
       printf "${KGRN}   -Done${KNRM}\n"
    fi
-   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$ToolsBinPath:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    if [ "$1" == "list-steps" ]; then
       ct-ng "$1"
@@ -863,26 +1324,6 @@ function downloadAndBuildzlib
     make install
 }
 
-
-function downloadElfLibrary
-{
-elfLibURL="https://github.com/WolfgangSt/libelf.git"
-
-   cd "${CT_TOP_DIR}/src"
-   printf "${KBLU}Downloading libelf latest... to ${PWD}${KNRM}\n"
-
-   if [ -d "libelf" ]; then
-      printf "${KRED}WARNING ${KNRM}Path already exists libelf${KNRM}\n"
-      printf "        A fetch will be done instead to keep tree up to date{KNRM}\n"
-      printf "\n"
-      cd "libelf"
-      git fetch
-    
-   else
-      git clone --depth=1 ${elfLibURL}
-   fi
-}
-
 function testBuild
 {
    gpp="${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}-g++"
@@ -893,16 +1334,16 @@ function testBuild
       return
    fi
 
-cat <<'HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
-#include <iostream>
-using namespace std;
+   cat <<'   HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
+      #include <iostream>
+      using namespace std;
 
-int main ()
-{
-  cout << "Hello World!";
-  return 0;
-}
-HELLO_WORLD_EOF
+      int main ()
+      {
+        cout << "Hello World!";
+        return 0;
+      }
+   HELLO_WORLD_EOF
 
    PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$PATH
 
@@ -959,7 +1400,7 @@ function downloadElfHeaderForOSX
 function cleanupElfHeaderForOSX
 {
    ElfHeaderFile="/usr/local/include/elf.h"
-   printf "${KBLU}Checking for ${KNRM}${ElfHeaderFile}${KNRM} ..."
+   printf "${KBLU}Checking for my ${KNRM}${ElfHeaderFile}${KNRM} ..."
    if [ -f "${ElfHeaderFile}" ]; then
       printf "${KGRN}found${KNRM}\n"
       if [ -f "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h" ]; then
@@ -983,7 +1424,7 @@ function configureRaspbianKernel
    cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
 
-   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$ToolsBinPath:/Volumes/${VolumeBase}/ctng/bin:$PATH 
    echo $PATH
 
 
@@ -1039,7 +1480,7 @@ export KBUILD_VERBOSE=1
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
-OPTSTRING='h?P?c:I:V:O:f:btT:'
+OPTSTRING='h?P?c:I:V:O:f:btT:L?'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -1106,6 +1547,11 @@ while getopts "$OPTSTRING" opt; do
           CrossToolNGConfigFile="${ToolchainName}.config"
           ;;
           #####################
+       L)
+          LoggingOpt="full"
+          ;;
+          #####################
+      
    esac
 done
 
@@ -1199,7 +1645,7 @@ while getopts "$OPTSTRING" opt; do
           testBuild   # testBuild sets rc
           if [ ${rc} == '0' ]; then
              printf "${KGRN}Wahoo ! it works!! ${KNRM}\n"
-          exit 0
+             exit 0
           else
              printf "${KRED}Boooo ! it failed :-( ${KNRM}\n"
              exit -1
@@ -1219,12 +1665,16 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       P)
-          export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH
+          export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$ToolsBinPath:/Volumes/${VolumeBase}/ctng/bin:$PATH
   
           printf "${KNRM}PATH=${PATH}${KNRM}\n"
           printf "./configure  ARCH=arm  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}\n"
     printf "make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}-\n"
           exit 0
+          ;;
+          #####################
+       L)
+          # Done in first getopt for proper order
           ;;
           #####################
       \?)
@@ -1252,8 +1702,9 @@ createTarBallSourcesDir
 # Create the case sensitive volume first.
 createCaseSensitiveVolume
 
-# Start with brew tools
-buildBrewDepends
+# Start with downloading missing OSX tools to our own
+# tools directory 
+buildMissingOSXTools
 
 # The 1.23  archive is busted and does not contain CT_Mirror, until
 # it is fixed, use git Latest
@@ -1262,6 +1713,8 @@ if [ ${downloadCrosstoolLatestOpt} == 'y' ]; then
 else
    downloadCrossTool
 fi
+
+printf "zarf - done"
 
 patchCrosstool
 buildCrosstool
