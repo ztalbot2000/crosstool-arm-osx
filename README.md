@@ -2,6 +2,9 @@
 Raspberry Pi Cross Compiler Script for OSX - Updated for crosstools-ng.1.23.0
 # Raspberry Pi Cross Compiler Script for OSX - Updated for crosstools-ng.1.23.0
 
+Status: The cross-compiler, zImage, modules and dtbs now compile.  I do not know if it runs 
+        Getting closer though!
+
 Note: The default is now crosstool-ng latest that will be downloaded
       automatially from  GitHub because I believe there is a problems
       with the 1.23.0 tarball
