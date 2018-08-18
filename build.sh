@@ -56,7 +56,7 @@ downloadCrosstoolLatestOpt=y
 
 #
 # Config. Update below here to suite your specific needs, but all options can be
-# specified from command line arguments. See build.sh -help.
+# specified from command line arguments. See ./build.sh -help.
 
 # The crosstool image will be $ImageName.sparseimage
 # The volume will grow as required because of the SPARSE type
@@ -463,7 +463,7 @@ function buildBrewTools()
    fi
    printf "${KGRN} found ${KNRM}\n"
    printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sha512sum ${KNRM} ..."
-   if [ ! -f $BrewHome/bin/gsha512sum ]; then
+   if [ ! -f $BrewHome/bin/sha512sum ]; then
       printf "${KYEL} not found ${KNRM}\n"
       printf "${KNRM}\nLinking gsha512sum to sha512sum ${KNRM}\n"
       ln -s $BrewHome/bin/gsha512sum $BrewHome/bin/sha512sum
@@ -479,7 +479,7 @@ function buildBrewTools()
    printf "${KGRN} found ${KNRM}\n"
 
    printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sha256sum ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/gsha256sum ]; then
+   if [ ! -f $BrewHome/bin/sha256sum ]; then
       printf "${KYEL} not found ${KNRM}\n"
       printf "${KNRM}Linking gsha256sum to sha256sum ${KNRM}\n"
       ln -s $BrewHome/bin/gsha256sum $BrewHome/bin/sha256sum
@@ -487,8 +487,17 @@ function buildBrewTools()
       printf "${KGRN} found ${KNRM}\n"
    fi
 
+   printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/readlink ${KNRM} ... "
+   if [ ! -f $BrewHome/bin/readlink ]; then
+      printf "${KYEL} not found ${KNRM}\n"
+      printf "${KNRM}Linking greadlink to readlink ${KNRM}\n"
+      ln -s $BrewHome/bin/greadlink $BrewHome/bin/readlink
+   else
+      printf "${KGRN} found ${KNRM}\n"
+   fi
+
    printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/stat ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/gstat ]; then
+   if [ ! -f $BrewHome/bin/stat ]; then
       printf "${KYEL} not found ${KNRM}\n"
       printf "${KNRM}Linking gstat to stat ${KNRM}\n"
       ln -s $BrewHome/bin/gstat $BrewHome/bin/stat
@@ -753,7 +762,7 @@ CONFIG_EOF
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
-   printf "${KBLU}Execute:${KNRM}bash build.sh -b ${KNRM}"
+   printf "${KBLU}Execute:${KNRM} ./build.sh -b ${KNRM}"
    if [ $Volume != 'CrossToolNG' ]; then
       printf "${KNRM} -V ${Volume}${KNRM}"
    fi
@@ -843,7 +852,7 @@ function downloadAndBuildzlib
          printf "${KGRN} done ${KNRM}\n"
       fi
       printf "${KBLU}Decompressing ${KNRM}${zlibFile} ... "
-      tar -xzf "${TarBallSourcesPath}/${zlibFile} -C ${CT_TOP_DIR}/src/"
+      tar -xzf ${TarBallSourcesPath}/${zlibFile} -C${CT_TOP_DIR}/src
       printf "${KGRN} done ${KNRM}\n"
    fi
 
@@ -1168,9 +1177,9 @@ while getopts "$OPTSTRING" opt; do
                 printf "${KGRN} found ${KNRM}\n"
                 printf "To rebuild it again, remove the old one first or ${KNRM}\n"
                 if [ $ToolchainNameOpt == 'y' ]; then
-                   printf "execute: build.sh -T ${ToolchainName} -b build ${KNRM}\n"
+                   printf "${KBLU}Execute:${KNRM} ./build.sh -T ${ToolchainName} -b build ${KNRM}\n"
                 else
-                   printf "execute: build.sh -b build ${KNRM}\n"
+                   printf "${KBLU}Execute:${KNRM} ./build.sh -b build ${KNRM}\n"
                 fi
              else
                 buildToolchain "build"
@@ -1271,7 +1280,14 @@ buildBrewTools
 printf "${KBLU}Checking for an existing ct-ng ${KNRM} /Volumes/${VolumeBase}/ctng/bin/ct-ng ... "
 if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
    printf "${KGRN} found ${KNRM}\n"
-   printf "${KNRM}Remove it if you wish to have it rebuilt\n"
+   printf "${KYEL}Remove it if you wish to have it rebuilt ${KNRM} or \n"
+   if [ $ToolchainNameOpt == 'y' ]; then
+      printf "${KBLU}Execute:${KNRM} ./build.sh -T ${ToolchainName} -b ${KNRM}\n"
+   else
+      printf "${KBLU}Execute:${KNRM} ./build.sh -b ${KNRM}\n"
+   fi
+   printf "to build the cross compiler\n"
+
    exit 0
 else
    printf "${KGRN} not found ${KNRM}\n"
