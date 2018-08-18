@@ -72,16 +72,16 @@ ImageNameBase="${ImageName}Base"
 # It would be copied to $CT_TOP_DIR/.config prior to ct-ng menuconfig
 # It can be overriden with -f <ConfigFile>. Please do this instead of
 # changing it here.
-CrossToolNGConfigFile="arm-rpi3-eabihf.config"
+CrossToolNGConfigFile="armv8-rpi3-linux-gnueabihf.config"
 CrossToolNGConfigFilePath="${PWD}"
 
 # This will be the name of the toolchain created by crosstools-ng
 # It is placed in $CT_TOP_DIR
 # The real name is based upon the options you have set in the CrossToolNG
 # config file. You will probably need to change this.  You now can do so with
-# the option -T <ToolchainName>. The default being arm-rpi3-eabihf
+# the option -T <ToolchainName>. The default being armv8-rpi3-linux-gnueabihf
 ToolchainNameOpt='n'
-ToolchainName='arm-rpi3-eabihf'
+ToolchainName='armv8-rpi3-linux-gnueabihf'
 
 #
 # Anything below here cannot be changed without bad effects
@@ -205,7 +205,7 @@ cat <<'HELP_EOF'
      -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
      -c raspbian     - run make clean in the RaspbianSrcDir.
      -f <configFile> - The name and path of the config file to use.
-                       Default is arm-rpi3-eabihf.config
+                       Default is armv8-rpi3-linux-gnueabihf.config
      -b              - Build the cross compiler AFTER building the necessary tools
                        and you have defined the crosstool-ng .config file.
      -b <last_step+>    * If last_step+ is specified ct-ng is executed with LAST_SUCCESSFUL_STETP_NAME+ 
@@ -214,10 +214,10 @@ cat <<'HELP_EOF'
      -b raspbian>    - Download and build Raspbian.
      -t              - After the build, run a Hello World test on it.
      -T <Toolchain>  - The ToolchainName created.
-                       The default used is: arm-rpi3-eabihf
+                       The default used is: armv8-rpi3-linux-gnueabihf
                        The actual result is based on what is in your
                            -f <configFile>
-                       The product of which would be: arm-rpi3-eabihf-gcc ...
+                       The product of which would be: armv8-rpi3-linux-gnueabihf-gcc ...
      -P              - Just Print the PATH variableH
      -h              - This menu.
      -help
@@ -361,7 +361,7 @@ function createCaseSensitiveVolumeBase()
 
 function createTarBallSourcesDir()
 {
-    printf "${KBLU}Checking for saved tarballs directory ${KNRM}${TarBallSourcesPath}${KNRM} ..."
+    printf "${KBLU}Checking for saved tarballs directory ${KNRM}${TarBallSourcesPath} ${KNRM} ..."
     if [ -d "${TarBallSourcesPath}" ]; then
        printf "${KGRN} found ${KNRM}\n"
     else
@@ -569,12 +569,7 @@ function downloadCrossTool()
       printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
       printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
    else
-      tar -xvf $CrossToolArchive
-
-      # Sadly we move the real archive name to CT_TOP_DIR
-      # so that if you use latest or a common crosstool-ng .config file
-      # CT_TOP_DIR matches here and there.
-      mv $CrossToolVersion $CrossToolSourceDir
+      tar -xf $CrossToolArchive -C $CrossToolSourceDir
    fi
 }
 
@@ -692,7 +687,7 @@ function createCrossCompilerConfigFile()
    cd ${CT_TOP_DIR}
 
 
-   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}.config ... "
+   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/.config ... "
    if [ -f  "${CT_TOP_DIR}/.config" ]; then
       printf "${KGRN} found ${KNRM}\n"
       printf "${KYEL}Using existing .config file ${KNRM}\n"
@@ -734,7 +729,7 @@ https://gist.github.com/h0tw1r3/19e48ae3021122c2a2ebe691d920a9ca
         /Volumes/$Volume/$OutputDir/${CT_TARGET}
 
 - Target options
-    By default this script builds the configuration for arm-rpi3-eabihf as this is my focus; However, crosstool-ng can build so many different types of cross compilers.  If you are interested in them, check out the samples with:
+    By default this script builds the configuration for armv8-rpi3-linux-gnueabihf as this is my focus; However, crosstool-ng can build so many different types of cross compilers.  If you are interested in them, check out the samples with:
 
       ct-ng list-samples
 
@@ -758,17 +753,17 @@ CONFIG_EOF
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
-   printf "${KBLU}Execute:${KNRM}bash build.sh -b${KNRM}"
+   printf "${KBLU}Execute:${KNRM}bash build.sh -b ${KNRM}"
    if [ $Volume != 'CrossToolNG' ]; then
       printf "${KNRM} -V ${Volume}${KNRM}"
    fi
    if [ $OutputDir != 'x-tools' ]; then
       printf "${KNRM} -O ${OutputDir}${KNRM}"
    fi
-   printf "${KBLU}or${KNRM}\n"
-   printf "PATH=$PATH${KNRM}\n"
-   printf "cd ${CT_TOP_DIR}${KNRM}\n"
-   printf "ct-ng build${KNRM}\n"
+   printf "${KBLU} or ${KNRM}\n"
+   printf "PATH=$PATH ${KNRM}\n"
+   printf "cd ${CT_TOP_DIR} ${KNRM}\n"
+   printf "ct-ng build ${KNRM}\n"
    
 
 }
@@ -847,12 +842,8 @@ function downloadAndBuildzlib
          curl -Lsf "${zlibURL}" -o "${TarBallSourcesPath}/${zlibFile}"
          printf "${KGRN} done ${KNRM}\n"
       fi
-      printf "${KBLU}Copying ${zlibFile} to working directory ${KNRM} ..."
-      cp "${TarBallSourcesPath}/${zlibFile}" "${CT_TOP_DIR}/src/."
-      printf "${KGRN} done ${KNRM}\n"
       printf "${KBLU}Decompressing ${KNRM}${zlibFile} ... "
-      cd "${CT_TOP_DIR}/src/"
-      tar -xzf "${zlibFile}"
+      tar -xzf "${TarBallSourcesPath}/${zlibFile} -C ${CT_TOP_DIR}/src/"
       printf "${KGRN} done ${KNRM}\n"
    fi
 
@@ -1027,7 +1018,7 @@ export KBUILD_VERBOSE=1
    # * General setup
    # *
    # Cross-compiler tool prefix (CROSS_COMPILE) [] (NEW) 
-   # - Set to: arm-rpi3-eabihf-
+   # - Set to: armv8-rpi3-linux-gnueabihf-
 
 
    # Preemption Model  (Under Processor Types and features
