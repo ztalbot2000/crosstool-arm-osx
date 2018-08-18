@@ -117,23 +117,8 @@ OutputDir='x-tools'
 # that did not behave as good as brew.
 # 
 BrewHome="/Volumes/${VolumeBase}/brew"
-
-
-# Binutils is for objcopy, objdump, ranlib, readelf
-# sed, gawk libtool bash, grep are direct requirements
-# xz is reauired when configuring crosstool-ng
-# help2man is reauired when configuring crosstool-ng
-# wget  is reauired when configuring crosstool-ng
-# wget  requires all kinds of stuff that is auto downloaded by brew. Sorry
-# automake is required to fix a compile issue with gettext
-# coreutils is for sha512sum
-# sha2 is for sha512
-# bison on osx was too old (2.3) and gcc compiler did not like it
-# findutils is for xargs, needed by make modules in Raspbian
-#
-# for Raspbian tools - libelf ncurses
-# for xconfig - QT   (takes hours). That would be up to you.
-BrewTools="gnu-sed binutils gawk automake libtool bash grep wget xz help2man automake coreutils sha2 ncurses gettext bison findutils"
+export HOMEBREW_CACHE=${TarBallSourcesPath}
+export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs 
 
 # This is required so brew can be installed elsewhere
 export BREW_PREFIX=$BrewHome
@@ -421,6 +406,22 @@ function createCaseSensitiveVolume()
 # If $BrewHome does not alread contain HomeBrew, download and install it. 
 # Install the required HomeBrew packages.
 #
+# Binutils is for objcopy, objdump, ranlib, readelf
+# sed, gawk libtool bash, grep are direct requirements
+# xz is reauired when configuring crosstool-ng
+# help2man is reauired when configuring crosstool-ng
+# wget  is reauired when configuring crosstool-ng
+# wget  requires all kinds of stuff that is auto downloaded by brew. Sorry
+# automake is required to fix a compile issue with gettext
+# coreutils is for sha512sum
+# sha2 is for sha512
+# bison on osx was too old (2.3) and gcc compiler did not like it
+# findutils is for xargs, needed by make modules in Raspbian
+#
+# for Raspbian tools - libelf ncurses
+# for xconfig - QT   (takes hours). That would be up to you.
+BrewTools="coreutils findutils libtool grep ncurses gettext xz gnu-sed gawk binutils help2man autoconf automake bison bash wget sha2"
+
 function buildBrewTools()
 {
    printf "${KBLU}Checking for HomeBrew tools ${KNRM} ...\n"
@@ -434,6 +435,18 @@ function buildBrewTools()
    else
       printf "   - Using existing Brew installation in ${BrewHome}${KNRM}\n"
    fi
+
+   printf "${KBLU}Checking for Brew log path  ${KNRM} ..."
+   if [ ! -d "$HOMEBREW_LOG_PATH" ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      printf "${KNRM}Creating brew logs directory: ${HOMEBREW_LOG_PATH} ... "
+      mkdir "$HOMEBREW_LOG_PATH"
+      printf "${KGRN} done ${KNRM}\n"
+
+   else
+      printf "${KGRN} found ${KNRM}\n"
+   fi
+
    export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    printf "${KBLU}Updating HomeBrew tools${KNRM} ...\n"
@@ -449,9 +462,29 @@ function buildBrewTools()
    # Do not Exit immediately if a command exits with a non-zero status.
    set +e
 
+#  $BrewHome/bin/brew install findutils --with-default-names --build-from-source 
+#  $BrewHome/bin/brew install libtool --with-default-names --build-from-source 
+#  $BrewHome/bin/brew install gnu-indent --with-default-names --build-from-source 
+#  $BrewHome/bin/brew install gnu-sed --with-default-names --build-from-source 
+#  $BrewHome/bin/brew install gnutls --build-from-source 
+#  $BrewHome/bin/brew install grep --with-default-names --build-from-source 
+#  $BrewHome/bin/brew install gnu-tar --with-default-names --build-from-source 
+#  $BrewHome/bin/brew install gawk --build-from-source 
+#  $BrewHome/bin/brew install ncurses  --build-from-source 
+#  $BrewHome/bin/brew install gettext  --build-from-source 
+#  $BrewHome/bin/brew install binutils  --build-from-source 
+#  $BrewHome/bin/brew install help2man  --build-from-source 
+#  $BrewHome/bin/brew install autoconf  --build-from-source 
+#  $BrewHome/bin/brew install automake  --build-from-source 
+#  $BrewHome/bin/brew install bison  --build-from-source 
+#  $BrewHome/bin/brew install bash  --build-from-source 
+#  $BrewHome/bin/brew install wget  --build-from-source 
+#  $BrewHome/bin/brew install sha2" --build-from-source 
+
    # $BrewHome/bin/brew install --with-default-names $BrewTools && true
-   # $BrewHome/bin/brew install $BrewTools --with-real-names && true
-   $BrewHome/bin/brew install $BrewTools --with-default-names && true
+   # $BrewHome/bin/brew install $BrewTools --build-from-source --with-real-names && true
+   # --default-names was deprecated
+   $BrewHome/bin/brew install $BrewTools  --build-from-source --with-default-names && true
 
    # change to Exit immediately if a command exits with a non-zero status.
    set -e
@@ -465,7 +498,7 @@ function buildBrewTools()
    printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/sha512sum ${KNRM} ..."
    if [ ! -f $BrewHome/bin/sha512sum ]; then
       printf "${KYEL} not found ${KNRM}\n"
-      printf "${KNRM}\nLinking gsha512sum to sha512sum ${KNRM}\n"
+      printf "${KNRM}Linking gsha512sum to sha512sum ${KNRM}\n"
       ln -s $BrewHome/bin/gsha512sum $BrewHome/bin/sha512sum
    else
       printf "${KGRN} found ${KNRM}\n"
@@ -955,8 +988,6 @@ function downloadElfHeaderForOSX
       
       ElfHeaderFileURL="https://gist.githubusercontent.com/mlafeldt/3885346/raw/2ee259afd8407d635a9149fcc371fccf08b0c05b/elf.h"
       curl -Lsf ${ElfHeaderFileURL} >  ${ElfHeaderFile}
-      #Placing it here too is a flag for us to remember to remove it from /usr/local
-      cp "${ElfHeaderFile}" "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h"
    fi
 }
 
@@ -966,7 +997,7 @@ function cleanupElfHeaderForOSX
    printf "${KBLU}Checking for ${KNRM} ${ElfHeaderFile} ... "
    if [ -f "${ElfHeaderFile}" ]; then
       printf "${KGRN} found ${KNRM}\n"
-      if [ -f "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h" ]; then
+      if [[ $(grep 'Mathias Lafeldt <mathias.lafeldt@gmail.com>' ${ElfHeaderFile}) ]];then
          printf "${KGRN}Removing ${ElfHeaderFile} ${KNRM} ... "
          rm "${ElfHeaderFile}"
          rm "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h"
@@ -1067,9 +1098,15 @@ while getopts "$OPTSTRING" opt; do
           # defeat its purpose of being solid and separate
 
           # Change all variables that require this
+          TarBallSourcesPath="/Volumes/${VolumeBase}/sources"
           BrewHome="/Volumes/${VolumeBase}/brew"
-          export BREW_PREFIX=$BrewHome
           CT_TOP_DIR="/Volumes/${Volume}"
+
+          export BREW_PREFIX=$BrewHome
+          export PKG_CONFIG_PATH=$BREW_PREFIX
+          export HOMEBREW_CACHE=${TarBallSourcesPath}
+          export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs
+
           ;;
       O)
           OutputDir=$OPTARG
