@@ -843,7 +843,7 @@ function downloadAndBuildzlib
          printf "${KGRN} done ${KNRM}\n"
       fi
       printf "${KBLU}Decompressing ${KNRM}${zlibFile} ... "
-      tar -xzf "${TarBallSourcesPath}/${zlibFile} -C ${CT_TOP_DIR}/src/"
+      tar -xzf ${TarBallSourcesPath}/${zlibFile} -C${CT_TOP_DIR}/src
       printf "${KGRN} done ${KNRM}\n"
    fi
 
