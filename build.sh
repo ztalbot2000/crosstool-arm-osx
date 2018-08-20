@@ -136,9 +136,15 @@ CrossToolSourceDir="crosstool-ng-src"
 
 CT_TOP_DIR="/Volumes/${Volume}"
 
-ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
-ImageNameExtBase=${ImageNameBase}.sparseimage   # This cannot be changed
 
+# Where Raspbian boot files will be placed
+# MSDOS FAT16 volume names are limited to 8 characters
+BootDir="RBoot"
+BootFS="/Volumes/${BootDir}"
+
+# Where Raspbian root files will be placed
+RootDir="RRoot"
+RootFS="/Volumes/${RootDir}"
 
 
 # Options to be toggled from command line
@@ -308,10 +314,10 @@ function realClean()
    fi
 
    # Since everything is on the image, just remove it does it all
-   printf "${KBLU}Removing ${ImageNameExt}${KNRM}\n"
-   removeFileWithCheck ${ImageNameExt}
-   printf "${KBLU}Removing ${ImageNameExtBase}${KNRM}\n"
-   removeFileWithCheck ${ImageNameExtBase}
+   printf "${KBLU}Removing ${ImageName}.sparseimage${KNRM}\n"
+   removeFileWithCheck "${ImageName}.sparseimage"
+   printf "${KBLU}Removing ${ImageNameBase}.sparseimage${KNRM}\n"
+   removeFileWithCheck "${ImageNameBase}.sparseimage"
 }
 
 # For smaller more permanent stuff
@@ -328,10 +334,10 @@ function createCaseSensitiveVolumeBase()
        return;
     fi
 
-   if [ -f "${ImageNameExtBase}" ]; then
+   if [ -f "${ImageNameBase}.sparseimage" ]; then
       printf "${KRED}WARNING:${KNRM}\n"
-      printf "         File already exists: ${ImageNameExtBase}${KNRM}\n"
-      printf "         This file will be mounted as ${VolumeDir}${KNRM}\n"
+      printf "         File already exists: ${ImageNameBase}.sparseimage ${KNRM}\n"
+      printf "         This file will be mounted as ${VolumeBase} ${KNRM}\n"
       
       # Give a couple of seconds for the user to react
       sleep 3
@@ -345,7 +351,7 @@ function createCaseSensitiveVolumeBase()
                       -puppetstrings
    fi
 
-   hdiutil mount ${ImageNameExtBase}
+   hdiutil mount "${ImageNameBase}.sparseimage"
 }
 
 function createTarBallSourcesDir()
@@ -386,10 +392,10 @@ function createCaseSensitiveVolume()
        return;
     fi
 
-   if [ -f "${ImageNameExt}" ]; then
+   if [ -f "${ImageName}.sparseimage" ]; then
       printf "${KRED}WARNING:${KNRM}\n"
-      printf "         File already exists: ${ImageNameExt}${KNRM}\n"
-      printf "         This file will be mounted as ${VolumeDir}${KNRM}\n"
+      printf "         File already exists: ${ImageName}.sparseimage ${KNRM}\n"
+      printf "         This file will be mounted as ${Volume} ${KNRM}\n"
       
       # Give a couple of seconds for the user to react
       sleep 3
@@ -403,7 +409,7 @@ function createCaseSensitiveVolume()
                       -puppetstrings
    fi
 
-   hdiutil mount ${ImageNameExt}
+   hdiutil mount "${ImageName}.sparseimage"
 }
 
 #
@@ -979,7 +985,7 @@ function cleanupElfHeaderForOSX
    printf "${KBLU}Checking for ${KNRM} ${ElfHeaderFile} ... "
    if [ -f "${ElfHeaderFile}" ]; then
       printf "${KGRN} found ${KNRM}\n"
-      if [[ $(grep 'Mathias Lafeldt <mathias.lafeldt@gmail.com>' ${ElfHeaderFile}) ]];then
+      if [[ $(grep 'mathias Lafeldt <mathias.lafeldt@gmail.com>' ${ElfHeaderFile}) ]];then
          printf "${KGRN}Removing ${ElfHeaderFile} ${KNRM} ... "
          rm "${ElfHeaderFile}"
          rm "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h"
@@ -1010,6 +1016,15 @@ function configureRaspbianKernel
 
    export CROSS_PREFIX=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-
 
+   printf "${KMAG}****************************************************************************************************** ${KNRM}\n"
+   printf "${KMAG}* WHEN CONFIGURING THE RASPIAN KERNEL YOU MUST SET THE COMPILER PREFIXTO: ${KRED} ${ToolchainName}-  ${KNRM}\n"
+   printf "${KMAG}****************************************************************************************************** ${KNRM}\n"
+
+   # This is so very important that we must make sure you remember to set the compiler prefix
+   # Maybe at a later date this will be automated
+   read -p "Press any key to continue"
+
+
    printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
    export LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
    export LFS_LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
@@ -1032,7 +1047,27 @@ export KBUILD_VERBOSE=1
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
         --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
-        zImage modules dtbs
+        zImage 
+
+   printf "${KBLU}Make modules in ${PWD}${KNRM}\n"
+   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
+   HOSTCC=${ToolchainName}-gcc \
+   ARCH=arm \
+      make  -j4 CROSS_COMPILE=${ToolchainName}- \
+        CC=${ToolchainName}-gcc \
+        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
+        modules
+
+   printf "${KBLU}Make dtbs in ${PWD}${KNRM}\n"
+   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
+   HOSTCC=${ToolchainName}-gcc \
+   ARCH=arm \
+      make  -j4 CROSS_COMPILE=${ToolchainName}- \
+        CC=${ToolchainName}-gcc \
+        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
+        dtbs
 
    # Only thing changed were
 
@@ -1053,6 +1088,41 @@ export KBUILD_VERBOSE=1
    # make O=${CT_TOP_DIR}/build/kernel
 
 
+}
+function installRaspbianKernel()
+{
+   printf "${KBLU}Installing Raspbian Kernel ${KNRM}\n"
+   printf "${KBLU}Checking for Raspbian source ${KNRM} ..."
+   if [ ! -d "${CT_TOP_DIR}/${RaspbianSrcDir}/linux" ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      printf "${KNRM} You must first successfully execute: ./biuld.sh -b Raspbian ${KNRM}\n"
+      exit -1
+   fi
+   printf "${KGRN} found ${KNRM}\n"
+
+   printf "${KBLU}Checking for ${BootFS} ${KNRM} ..."
+   if [ ! -d "${BootFS}" ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      exit -1
+   fi
+   printf "${KGRN} found ${KNRM}\n"
+
+   printf "${KBLU}Checking for ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${KNRM} ..."
+   if [ ! -f "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage" ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      exit -1
+   fi
+   printf "${KGRN} found ${KNRM}\n"
+
+
+   printf "${KBLU}Copying Raspbian file ${KNRM}\n"
+   
+
+   # FIXME add sudo later
+   cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/*.dtb ${BootFS}/
+   cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/*.dtb* ${BootFS}/overlays/
+   cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/README ${BootFS}/overlays/
+   cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${BootFS}/kernel7.img
 }
 function checkExt2InstallForOSX()
 {
@@ -1143,6 +1213,90 @@ function updateBrewForEXT2()
 
 }
 
+function createDosBootPVolume()
+{
+    printf "${KBLU}Creating 1G volume for Raspbian boot mounted as ${BootFS}${KNRM} ...\n"
+    if [  -d "${BootFS}" ]; then
+       printf "${KYEL}WARNING${KNRM}: Volume already exists: ${BootFS}${KNRM}\n"
+      
+       # Give a couple of seconds for the user to react
+       sleep 3
+
+       return;
+    fi
+
+   if [ -f "${BootDir}.sparseimage" ]; then
+      printf "${KRED}WARNING:${KNRM}\n"
+      printf "         File already exists: ${BootDir}.sparseimage ${KNRM}\n"
+      printf "         This file will be mounted as ${BootDir}${KNRM}\n"
+      
+      # Give a couple of seconds for the user to react
+      sleep 3
+
+   else
+      hdiutil create ${BootDir}           \
+                      -volname ${BootDir} \
+                      -type SPARSE               \
+                      -size 1g                   \
+                      -fs "MS-DOS FAT16"         \
+                      -puppetstrings
+   fi
+
+   hdiutil mount ${BootDir}.sparseimage
+}
+
+# At this time I do not care that this is not an ext4 partition.
+# I'll see about fixing this properly later.  There are bigger fish to fry.
+function createRootPVolume()
+{
+    printf "${KBLU}Creating 7g volume for Raspbian root mounted as ${RootFS}${KNRM} ...\n"
+    if [  -d "${RootFS}" ]; then
+       printf "${KYEL}WARNING${KNRM}: Volume already exists: ${RootFS}${KNRM}\n"
+      
+       # Give a couple of seconds for the user to react
+       sleep 3
+
+       return;
+    fi
+
+   if [ -f "${RootDir}.sparseimage" ]; then
+      printf "${KRED}WARNING:${KNRM}\n"
+      printf "         File already exists: ${RootDir}.sparseimage ${KNRM}\n"
+      printf "         This file will be mounted as ${RootDir}${KNRM}\n"
+      
+      # Give a couple of seconds for the user to react
+      sleep 3
+
+   else
+      hdiutil create ${RootDir}           \
+                      -volname ${RootDir} \
+                      -type SPARSE               \
+                      -size 7g                   \
+                      -fs HFSX                   \
+                      -puppetstrings
+   fi
+
+   hdiutil mount ${RootDir}.sparseimage
+}
+
+function createPartitions
+{
+  # bootp=${device}p1
+  # rootp=${device}p2
+
+  # mkfs.vfat ${bootp}
+  # mkfs.ext4 ${rootp}
+
+
+
+  mkdir -p ${RootFS}/proc
+  mkdir -p ${RootFS}/sys
+  mkdir -p ${RootFS}/dev
+  mkdir -p ${RootFS}/dev/pts
+  mkdir -p ${RootFS}/usr/src/delivery
+
+}
+
 
 function downloadCrossTool()
 {
@@ -1164,6 +1318,31 @@ function downloadCrossTool()
    fi
 }
 
+function updateVariables()
+{
+   # MSDOS FAT16 volume names are limited to 8 characters
+   BootDir="RBoot"
+   BootFS="/Volumes/${BootDir}"
+
+   RootDir="RRoot"
+   RootFS="/Volumes/${RootDir}"
+
+   CrossToolNGConfigFile="${ToolchainName}.config"
+
+   # Do not change the name of VolumeBase. It would
+   # defeat its purpose of being solid and separate
+
+   # Change all variables that require this
+   TarBallSourcesPath="/Volumes/${VolumeBase}/sources"
+   BrewHome="/Volumes/${VolumeBase}/brew"
+   CT_TOP_DIR="/Volumes/${Volume}"
+
+   export BREW_PREFIX=$BrewHome
+   export PKG_CONFIG_PATH=$BREW_PREFIX
+   export HOMEBREW_CACHE=${TarBallSourcesPath}
+   export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs
+}
+
 
 
 # Define this once and you save yourself some trouble
@@ -1177,32 +1356,27 @@ while getopts "$OPTSTRING" opt; do
           if  [ $OPTARG == "raspbian" ] || [ $OPTARG == "Raspbian" ]; then
              CleanRaspbianOpt='y';
           fi
+
           ;;
           #####################
       I)
           ImageName=$OPTARG
-          ImageNameExt=${ImageName}.sparseimage   # This cannot be changed
+
+          updateVariables
+
           ;;
           #####################
       V)
           Volume=$OPTARG
 
-          # Do not change the name of VolumeBase. It would
-          # defeat its purpose of being solid and separate
-
-          # Change all variables that require this
-          TarBallSourcesPath="/Volumes/${VolumeBase}/sources"
-          BrewHome="/Volumes/${VolumeBase}/brew"
-          CT_TOP_DIR="/Volumes/${Volume}"
-
-          export BREW_PREFIX=$BrewHome
-          export PKG_CONFIG_PATH=$BREW_PREFIX
-          export HOMEBREW_CACHE=${TarBallSourcesPath}
-          export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs
+          updateVariables
 
           ;;
       O)
           OutputDir=$OPTARG
+
+          updateVariables
+
           ;;
           #####################
       f)
@@ -1239,7 +1413,9 @@ while getopts "$OPTSTRING" opt; do
        T)
           ToolchainNameOpt=y
           ToolchainName=$OPTARG
-          CrossToolNGConfigFile="${ToolchainName}.config"
+
+          updateVariables
+
           ;;
           #####################
        i)
@@ -1384,7 +1560,14 @@ while getopts "$OPTSTRING" opt; do
           #####################
        i)
           InstallKernelOpt=y
+
           updateBrewForEXT2
+
+          createDosBootPVolume
+          createRootPVolume
+
+          installRaspbianKernel
+
           exit 0
           ;;
           #####################
