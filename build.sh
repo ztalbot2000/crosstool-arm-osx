@@ -1,4 +1,46 @@
 #!/bin/bash
+# To install and/or use osxfuse you may need to enable their kernel extension in
+# 
+#   System Preferences → Security & Privacy → General
+# 
+# For more information refer to vendor documentation or the Apple Technical Note:
+# 
+#   https://developer.apple.com/library/content/technotes/tn2459/_index.html
+# 
+# You must reboot for the installation of osxfuse to take effect.
+
+
+
+# This formula is keg-only, which means it was not symlinked into /Volumes/CrossToolNGBase/brew,
+# because this installs several executables which shadow macOS system commands.
+# 
+# If you need to have this software first in your PATH run:
+#   echo 'export PATH="/Volumes/CrossToolNGBase/brew/opt/e2fsprogs/bin:$PATH"' >> ~/.bash_profile
+#   echo 'export PATH="/Volumes/CrossToolNGBase/brew/opt/e2fsprogs/sbin:$PATH"' >> ~/.bash_profile
+# 
+# For compilers to find this software you may need to set:
+#     LDFLAGS:  -L/Volumes/CrossToolNGBase/brew/opt/e2fsprogs/lib
+#     CPPFLAGS: -I/Volumes/CrossToolNGBase/brew/opt/e2fsprogs/include
+# For pkg-config to find this software you may need to set:
+#     PKG_CONFIG_PATH: /Volumes/CrossToolNGBase/brew/opt/e2fsprogs/lib/pkgconfig
+#
+# ==> fuse-ext2
+# For fuse-ext2 to be able to work properly, the filesystem extension and
+# preference pane must be installed by the root user:
+# 
+#   sudo cp -pR /Volumes/CrossToolNGBase/brew/opt/fuse-ext2/System/Library/Filesystems/fuse-ext2.fs /Library/Filesystems/
+#   sudo chown -R root:wheel /Library/Filesystems/fuse-ext2.fs
+# 
+#   sudo cp -pR /Volumes/CrossToolNGBase/brew/opt/fuse-ext2/System/Library/PreferencePanes/fuse-ext2.prefPane /Library/PreferencePanes/
+#   sudo chown -R root:wheel /Library/PreferencePanes/fuse-ext2.prefPane
+# 
+# Removing properly the filesystem extension and the preference pane
+# must be done by the root user:
+# 
+#   sudo rm -rf /Library/Filesystems/fuse-ext2.fs
+#   sudo rm -rf /Library/PreferencePanes/fuse-ext2.prefPane
+# 
+
 #
 #  Author: John Talbot
 #
@@ -145,6 +187,7 @@ ImageNameExtBase=${ImageNameBase}.sparseimage   # This cannot be changed
 BuildRaspbianOpt='n'
 CleanRaspbianOpt='n'
 BuildToolchainOpt='n'
+InstallKernelOpt='n'
 
 # Fun colour stuff
 KNRM="\x1B[0m"
@@ -298,9 +341,11 @@ function realClean()
    # Remove our elf.h
    cleanupElfHeaderForOSX
 
+   # Eject the disk instead of unmounting it or you will have
+   # a lot of disks hanging around.  I had 47, Doh!
    if [ -d  "/Volumes/${VolumeBase}" ]; then 
-      printf "${KBLU}Unmounting  /Volumes/${VolumeBase}${KNRM}\n"
-      hdiutil unmount /Volumes/${VolumeBase}
+      printf "${KBLU}Ejecting  /Volumes/${VolumeBase}${KNRM}\n"
+      hdiutil eject /Volumes/${VolumeBase}
    fi
 
    # Since everything is on the image, just remove it does it all
@@ -593,6 +638,94 @@ function buildBrewTools()
    fi
 
 }
+function checkExt2InstallForOSX()
+{
+
+   printf "${KBLU}Checking for Ext2 tools ${KNRM} ..."
+   if [ ! -d $BrewHome/Caskroom/osxfuse ] &&
+      [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      printf "${KNRM}You must first execute: ./build.sh -i ${KNRM}\n"
+      printf "${KNRM}To install the brew Ext2 tools ... ${KNRM}\n"
+      exit -1
+   fi
+   printf "${KGRN} found ${KNRM}\n"
+
+   printf "${KBLU}Checking that Ext2 tools are set up properly ${KNRM} ... "
+   if [ ! -d /Library/Filesystems/fuse-ext2.fs ] &&
+      [ ! -d /Library/PreferencePanes/fuse-ext2.prefPane ]; then
+      printf "\n${KRED}As per the previous Fuse-Ext2 instructions ${KNRM}\n"
+
+      cat <<'      EXT2_EOF'
+
+          For fuse-ext2 to be able to work properly, the filesystem extension and
+          preference pane must be installed by the root user:
+ 
+          sudo cp -pR /Volumes/CrossToolNGBase/brew/opt/fuse-ext2/System/Library/Filesystems/fuse-ext2.fs /Library/Filesystems/
+          sudo chown -R root:wheel /Library/Filesystems/fuse-ext2.fs
+
+          sudo cp -pR /Volumes/CrossToolNGBase/brew/opt/fuse-ext2/System/Library/PreferencePanes/fuse-ext2.prefPane /Library/PreferencePanes/
+          sudo chown -R root:wheel /Library/PreferencePanes/fuse-ext2.prefPane
+
+      EXT2_EOF
+
+      exit -1
+   fi
+
+   printf "${KGRN} OK ${KNRM}\n"
+   
+}
+
+function updateBrewForEXT2()
+{
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:$PATH 
+
+   printf "${KBLU}Checking for HomeBrew tools ${KNRM} ..."
+   if [ ! -f "${BrewHome}/bin/brew" ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      printf "${KNRM}You must first execute: ./build.sh  ${KNRM}\n"
+      printf "${KNRM}To install the brew tools etc ... ${KNRM}\n"
+      exit -1
+   fi
+   printf "${KGRN} found ${KNRM}\n"
+
+   if [ ! -d $BrewHome/Caskroom/osxfuse ] &&
+      [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
+      printf "${KBLU}Updating HomeBrew tools${KNRM} ...\n"
+      printf "${KRED}Ignore the ERROR: could not link ${KNRM}\n"
+      printf "${KRED}Ignore the message "
+      printf "Please delete these paths and run brew update ${KNRM}\n"
+      printf "They are created by brew as it is not in /local or with sudo ${KNRM}\n"
+      printf "\n"
+
+      $BrewHome/bin/brew update
+
+      # Do not Exit immediately if a command exits with a non-zero status.
+      set +e
+
+      if [ ! -d $BrewHome/Caskroom/osxfuse ]; then
+         printf "${KBLU}Installing brew cask osxfuse ${KNRM}\n"
+         $BrewHome/bin/brew cask install osxfuse && true
+      fi
+
+      if [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
+         printf "${KBLU}Installing brew ext4fuse ${KNRM}\n"
+         #$BrewHome/bin/brew install ext4fuse && true
+         $BrewHome/bin/brew install --HEAD https://raw.githubusercontent.com/yalp/homebrew-core/fuse-ext2/Formula/fuse-ext2.rb && true
+      fi
+
+      printf "${KBLU}After the install and reboot ${KNRM} \n"
+      printf "${KBLU}Execute again: ${KNRM} ./build.sh -1 \n"
+
+      exit 0
+   fi
+
+   # change to Exit immediately if a command exits with a non-zero status.
+   set -e
+
+   checkExt2InstallForOSX
+
+}
 
 
 function downloadCrossTool()
@@ -843,7 +976,8 @@ function buildToolchain()
       ct-ng "$1"
    else
       ct-ng "$1"
-      printf "And if all went well, you are done! Go forth and compile. ${KNRM}\n"
+      printf "And if all went well, you are done! Go forth and cross compile ${KNRM}\n"
+      printf "Raspbian if you so wish with: ./build.sh -b Raspbian ${KNRM}\n"
    fi
 }
 
@@ -1075,7 +1209,7 @@ export KBUILD_VERBOSE=1
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
-OPTSTRING='h?P?c:I:V:O:f:btT:'
+OPTSTRING='h?P?c:I:V:O:f:btT:i'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -1147,6 +1281,10 @@ while getopts "$OPTSTRING" opt; do
           ToolchainNameOpt=y
           ToolchainName=$OPTARG
           CrossToolNGConfigFile="${ToolchainName}.config"
+          ;;
+          #####################
+       i)
+          InstallKernelOpt=y
           ;;
           #####################
    esac
@@ -1282,6 +1420,12 @@ while getopts "$OPTSTRING" opt; do
           printf "${KNRM}PATH=${PATH}${KNRM}\n"
           printf "./configure  ARCH=arm  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}\n"
     printf "make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}-\n"
+          exit 0
+          ;;
+          #####################
+       i)
+          InstallKernelOpt=y
+          updateBrewForEXT2
           exit 0
           ;;
           #####################
