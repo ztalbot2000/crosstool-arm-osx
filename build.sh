@@ -241,6 +241,32 @@ function removePathWithCheck()
    fi
 }
 
+function waitForPid()
+{
+   pid=$1
+   spindleCount=0
+   spindleArray=("|" "/" "-" "\\")
+
+   while ps -p $pid >/dev/null; do
+      sleep 0.5
+      printf  "\r${KGRN}"
+      printf ${spindleArray[$spindleCount]}
+      printf  " ${KNRM}"
+      spindleCount=$((spindleCount + 1))
+      if [[ $spindleCount -eq ${#spindleArray[*]} ]]; then
+         spindleCount=0
+      fi
+   done
+   printf "\r${KNRM}"
+
+   # Get the true return code of the process
+   wait $pid
+
+   # Set our global return code of the process
+   rc=$?
+}
+
+
 function cleanBrew()
 {
    if [ -f "${BrewHome}/.flagToDeleteBrewLater" ]; then
@@ -253,9 +279,6 @@ function cleanBrew()
          exit -1
       fi
 
-      printf "${KBLU}Cleaning brew cache ${KNRM} ... "
-      ${BrewHome}/bin/brew cleanup --cache
-      printf "${KGRN} done ${KNRM}\n"
       removePathWithCheck  "${BrewHome}"
    fi
 }
@@ -272,7 +295,8 @@ function ct-ngMakeClean()
       exit -1
    fi
    cd "${ctDir}"
-   make clean
+   make clean 
+   printf "${KGRN} done ${KNRM}\n"
 }
 function raspbianClean()
 {
@@ -346,8 +370,9 @@ function createCaseSensitiveVolumeBase()
       hdiutil create ${ImageNameBase}        \
                       -volname ${VolumeBase} \
                       -type SPARSE           \
-                      -size 2g               \
+                      -size 4g               \
                       -fs HFSX               \
+                      -quiet                 \
                       -puppetstrings
    fi
 
@@ -406,6 +431,7 @@ function createCaseSensitiveVolume()
                       -type SPARSE          \
                       -size 32              \
                       -fs HFSX              \
+                      -quiet                \
                       -puppetstrings
    fi
 
@@ -448,7 +474,7 @@ function buildBrewTools()
 
    printf "${KBLU}Checking for Brew log path  ${KNRM} ..."
    if [ ! -d "$HOMEBREW_LOG_PATH" ]; then
-      printf "${KRED} not found ${KNRM}\n"
+      printf "${KYEL} not found ${KNRM}\n"
       printf "${KNRM}Creating brew logs directory: ${HOMEBREW_LOG_PATH} ... "
       mkdir "$HOMEBREW_LOG_PATH"
       printf "${KGRN} done ${KNRM}\n"
@@ -467,7 +493,16 @@ function buildBrewTools()
    printf "\n"
 
 
-   $BrewHome/bin/brew update
+   printf "${KBLU}Running Brew update${KNRM} ... Logging to /tmp/brew_update.log \n"
+   $BrewHome/bin/brew update > /tmp/brew_update.log 2>&1 &
+   pid="$!"
+   waitForPid "$pid"
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} brew update tools failed. Check the log for details\n"
+      exit $rc
+   fi
+   printf "${KGRN} done ${KNRM}\n"
+
 
    # Do not Exit immediately if a command exits with a non-zero status.
    set +e
@@ -494,7 +529,15 @@ function buildBrewTools()
    # $BrewHome/bin/brew install --with-default-names $BrewTools && true
    # $BrewHome/bin/brew install $BrewTools --build-from-source --with-real-names && true
    # --default-names was deprecated
-   $BrewHome/bin/brew install $BrewTools  --build-from-source --with-default-names && true
+   printf "${KBLU}Installing brew tools. This may take quite a while ${KNRM} to ${BrewHome} ... Logging to /tmp/brewToolsInstall.log\n"
+   $BrewHome/bin/brew install $BrewTools  --build-from-source --with-default-names > /tmp/brewToolsInsrall.log 2>&1 &
+   pid="$!"
+   waitForPid "$pid"
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} brew tools failed. Check the log for details\n"
+      exit $rc
+   fi
+   printf "${KGRN} done ${KNRM}\n"
 
    # change to Exit immediately if a command exits with a non-zero status.
    set -e
@@ -685,7 +728,16 @@ function buildCrosstool()
    # CPPFLAGS is required too to fix libintl.h not found
    LDFLAGS="  -L${BrewHome}/opt/gettext/lib -lintl " \
    CPPFLAGS=" -I${BrewHome}/opt/gettext/include" \
-   ./configure  --with-libintl-prefix=$gettextDir --prefix="/Volumes/${VolumeBase}/ctng"
+   ./configure  --with-libintl-prefix=$gettextDir --prefix="/Volumes/${VolumeBase}/ctng" \
+   > /tmp/ct-ng_config.log 2>&1 &
+   pid="$!"
+   waitForPid "$pid"
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
+      exit $rc
+   fi
+   printf "${KGRN} done ${KNRM}\n"
+
 
    # These are not needed by crosstool-ng version 1.23.0
    # 
@@ -701,11 +753,24 @@ function buildCrosstool()
    #        BASH=$BrewHome/bin/bash               \
    #        CFLAGS="-std=c99 -Doffsetof=__builtin_offsetof"
 
-   printf "${KBLU}Compiling crosstool-ng ${KNRM}in ${PWD} \n"
+   printf "${KBLU}Compiling crosstool-ng ${KNRM}in ${PWD} ... Logging to /tmp/ctng_build.log\n"
+   make > /tmp/ctng_build.log 2>&1 &
+   pid="$!"
+   waitForPid "$pid"
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details\n"
+      exit $rc
+   fi
+   printf "${KGRN} done ${KNRM}\n"
 
-   make
-   printf "${KBLU}Installing  crosstool-ng ${KNRM}in /Volumes/${VolumeBase}/ctng\n"
-   make install
+   printf "${KBLU}Installing  crosstool-ng ${KNRM}in /Volumes/${VolumeBase}/ctng ... Logging to /tmp/ctng_install.log\n"
+   make install > /tmp/ctng_install.log 2>&1 &
+   pid="$!"
+   waitForPid "$pid"
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details\n"
+      exit $rc
+   fi
    printf "${KGRN}Compilation of ct-ng is Complete ${KNRM}\n"
 }
 
@@ -716,7 +781,7 @@ function createCrossCompilerConfigFile()
    cd ${CT_TOP_DIR}
 
 
-   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/.config ... "
+   printf "${KBLU}Checking for ct-ng config file ${KNRM}${CT_TOP_DIR}/.config ... "
    if [ -f  "${CT_TOP_DIR}/.config" ]; then
       printf "${KGRN} found ${KNRM}\n"
       printf "${KYEL}Using existing .config file ${KNRM}\n"
@@ -789,10 +854,7 @@ CONFIG_EOF
    if [ $OutputDir != 'x-tools' ]; then
       printf "${KNRM} -O ${OutputDir}${KNRM}"
    fi
-   printf "${KBLU} or ${KNRM}\n"
-   printf "PATH=$PATH ${KNRM}\n"
-   printf "cd ${CT_TOP_DIR} ${KNRM}\n"
-   printf "ct-ng build ${KNRM}\n"
+   printf "\n"
    
 
 }
@@ -829,7 +891,15 @@ function buildToolchain()
    if [ "$1" == "list-steps" ]; then
       ct-ng "$1"
    else
-      ct-ng "$1"
+      
+      printf "${KBLU} Executing ct-ng to $1 cross compiler ${KNRM} Logging to /tmp/ct-ng.log \n"
+      ct-ng "$1" > /tmp/ct-ng.log 2>&1 &
+      pid="$!"
+      waitForPid "$pid"
+      if [ $rc != 0 ]; then
+         printf "${KRED}Error : [${rc}] ${KNRM} ct-ng $1 failed. Check the log for details\n"
+         exit $rc
+      fi
       printf "And if all went well, you are done! Go forth and cross compile ${KNRM}\n"
       printf "Raspbian if you so wish with: ./build.sh -b Raspbian ${KNRM}\n"
    fi
@@ -877,15 +947,45 @@ function downloadAndBuildzlib
       printf "${KGRN} done ${KNRM}\n"
    fi
 
+     printf "${KBLU} Configuring zlib ${KNRM} Logging to /tmp/zlib_config.log \n"
     cd "${CT_TOP_DIR}/src/zlib-1.2.11"
     CHOST=${ToolchainName} ./configure \
           --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
           --static \
           --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
-          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include
+          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include \
+    > /tmp/zlib_config.log 2>&1 &
 
-    make
-    make install
+    pid="$!"
+    waitForPid "$pid"
+    if [ $rc != 0 ]; then
+       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
+       exit $rc
+    fi
+
+    printf "${KBLU} Building zlib ${KNRM} Logging to /tmp/zlib_build.log \n"
+    make > /tmp/zlib_build.log 2>&1 &
+
+    pid="$!"
+    waitForPid "$pid"
+    if [ $rc != 0 ]; then
+       printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details\n"
+       exit $rc
+    fi
+
+    
+
+
+    printf "${KBLU} Installing zlib ${KNRM} Logging to /tmp/zlib_install.log \n"
+    make install > /tmp/zlib_install.log 2>&1 &
+
+    pid="$!"
+    waitForPid "$pid"
+    if [ $rc != 0 ]; then
+       printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details\n"
+       exit $rc
+    fi
+
 }
 
 
@@ -912,8 +1012,7 @@ function testBuild
 {
    gpp="${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}-g++"
    if [ ! -f "${gpp}" ]; then
-      printf "${KRED}No executable compiler found. ${KNRM}\n"
-      printf "   ${KNRM} ${gpp} \n"
+      printf "${KYEL}No executable compiler found. ${KNRM} ${gpp} \n"
       rc='-1'
       return
    fi
@@ -940,10 +1039,31 @@ function downloadRaspbianKernel
 {
 RaspbianURL="https://github.com/raspberrypi/linux.git"
 
-   cd "${CT_TOP_DIR}"
-   printf "${KBLU}Downloading Raspbian Kernel latest ${KNRM} to ${PWD}\n"
+   printf "${KMAG}****************************************************************************************************** ${KNRM}\n"
+   printf "${KMAG}* WHEN CONFIGURING THE RASPIAN KERNEL YOU MUST SET THE COMPILER PREFIXTO: ${KRED} ${ToolchainName}-  ${KNRM}\n"
+   printf "${KMAG}****************************************************************************************************** ${KNRM}\n"
 
-   if [ -d "${RaspbianSrcDir}" ]; then
+   # This is so very important that we must make sure you remember to set the compiler prefix
+   # Maybe at a later date this will be automated
+   read -p "Press any key to continue"
+
+
+   cd "${CT_TOP_DIR}"
+   printf "${KBLU}Downloading Raspbian Kernel latest ${KNRM} \n"
+
+   
+   printf "${KBLU}Checking for ${KNRM} ${RaspbianSrcDir} ... "
+   if [ ! -d "${RaspbianSrcDir}" ]; then
+      printf "${KYEL} not found ${KNRM}\n"
+      printf "${KBLU}Creating ${KNRM}${RaspbianSrcDir} ... "
+      mkdir "${RaspbianSrcDir}"
+      printf "${KGRN} done ${KNRM}\n"
+   fi
+
+   cd "${RaspbianSrcDir}"
+
+   printf "${KBLU}Checking for ${KNRM} ${RaspbianSrcDir}/linux ... "
+   if [ -d "${RaspbianSrcDir}/linux" ]; then
       printf "${KRED}WARNING ${KNRM}Path already exists ${RaspbianSrcDir} ${KNRM}\n"
       printf "        A fetch will be done instead to keep tree up to date\n"
       printf "\n"
@@ -951,13 +1071,60 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
       git fetch
     
    else
-      printf "${KBLU}Creating ${KNRM}${RaspbianSrcDir} ${KNRM} ... "
-      mkdir "${RaspbianSrcDir}"
-      printf "${KGRN} done ${KNRM}\n"
+      printf "${KBLU}Checking for saved ${KNRM} linux.tar.xz ... \n"
+      if [ -f "${TarBallSourcesPath}/linux.tar.xz" ]; then
+         printf "${KGRN} found ${KNRM}\n"
 
-      cd "${RaspbianSrcDir}"
-      git clone --depth=1 ${RaspbianURL}
+         printf "${KBLU}Extracting saved ${KNRM} linux.tar.xz ... Logging to /tmp/linux_extract.log\n"
+         tar -xzf "${TarBallSourcesPath}/linux.tar.xz" > /tmp/linux_extract.log 2>&1 &
+         pid="$!"
+         waitForPid "$pid"
+         if [ $rc != 0 ]; then
+            printf "${KRED}Error : [${rc}] ${KNRM} extract failed. Check the log for details\n"
+            exit $rc
+         fi
+ 
+         printf "${KGRN} done ${KNRM}\n"
+         
+      else
+         printf "${KYEL} not found ${KNRM}\n"
+         printf "${KBLU}Cloning Raspbian from git ${KNRM} ... Logging to /tmp/raspbian_git.log\n"
+
+         git clone --quiet  ${RaspbianURL} > /tmp/raspbian_gitlog 2>&1 &
+         pid="$!"
+         waitForPid "$pid"
+         if [ $rc != 0 ]; then
+            printf "${KRED}Error : [${rc}] ${KNRM} clone failed. Check the log for details\n"
+            exit $rc
+         fi
+         printf "${KGRN} done ${KNRM}\n"
+
+         # Fix missing dtb's 
+         # cd linux
+         # git remote add mptcp https://github.com/multipath-tcp/mptcp.git
+         # git fetch mptcp
+         # git checkout -b rpi_mptcp origin/rpi-4.14.y
+         # # SETTING UP GIT EMAIL (CAN BE A TRASH MAIL OR JUST EXAMPLE@MAIL.COM)
+         # git config --global user.email "example@mail.com"
+         # git merge mptcp/mptcp_v0.94
+         # cd ..
+
+         # Patch source for RT Linux
+         # wget -O rt.patch.gz https://www.kernel.org/pub/linux/kernel/projects/rt/4.14/older/patch-4.14.18-rt15.patch.gz
+         # zcat rt.patch.gz | patch -p1
+
+         printf "${KBLU}Saving Raspbian source ${KNRM} to ${TarBallSourcesPath}/linux.tar.xz ...  Logging to raspbian_compress.log\n"
+         tar -cJf "${TarBallSourcesPath}/linux.tar.xz" linux > /tmp/raspbian_compress.log 2>&1 &
+         pid="$!"
+         waitForPid "$pid"
+         if [ $rc != 0 ]; then
+            printf "${KRED}Error : [${rc}] ${KNRM} save failed. Check the log for details\n"
+            exit $rc
+         fi
+         printf "${KGRN} done ${KNRM}\n"
+      fi
    fi
+
 }
 function downloadElfHeaderForOSX
 {
@@ -985,15 +1152,14 @@ function cleanupElfHeaderForOSX
    printf "${KBLU}Checking for ${KNRM} ${ElfHeaderFile} ... "
    if [ -f "${ElfHeaderFile}" ]; then
       printf "${KGRN} found ${KNRM}\n"
-      if [[ $(grep 'mathias Lafeldt <mathias.lafeldt@gmail.com>' ${ElfHeaderFile}) ]];then
+      if [[ $(grep 'Mathias Lafeldt <mathias.lafeldt@gmail.com>' ${ElfHeaderFile}) ]];then
          printf "${KGRN}Removing ${ElfHeaderFile} ${KNRM} ... "
          rm "${ElfHeaderFile}"
-         rm "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/elf.h"
          printf "${KGRN} done ${KNRM}\n"
       else
          printf "${KRED} not done ${KNRM}\n"
          printf "${KRED}Warning. There is a ${KNRM}${ElfHeaderFile}\n"
-         printf "${KRED}But it was not put there by this tool, I believe ${KNRM}"
+         printf "${KRED}But it was not put there by this tool, I believe ${KNRM}\n"
          sleep 4
       fi
    else
@@ -1016,29 +1182,18 @@ function configureRaspbianKernel
 
    export CROSS_PREFIX=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-
 
-   printf "${KMAG}****************************************************************************************************** ${KNRM}\n"
-   printf "${KMAG}* WHEN CONFIGURING THE RASPIAN KERNEL YOU MUST SET THE COMPILER PREFIXTO: ${KRED} ${ToolchainName}-  ${KNRM}\n"
-   printf "${KMAG}****************************************************************************************************** ${KNRM}\n"
-
-   # This is so very important that we must make sure you remember to set the compiler prefix
-   # Maybe at a later date this will be automated
-   read -p "Press any key to continue"
-
 
    printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
    export LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
    export LFS_LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
    # make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
-    make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+   make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
+   # This cannot include ARCH= ... as it runs on OSX
    make nconfig
 
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
-   printf "ls of ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include\n"
-   ls ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
-   printf "running: make  CROSS_COMPILE=${ToolchainName}- CC=${ToolchainName}-gcc --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include -I ${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include zImage\n"
-export KBUILD_VERBOSE=1
 
    KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
    KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
@@ -1234,11 +1389,12 @@ function createDosBootPVolume()
       sleep 3
 
    else
-      hdiutil create ${BootDir}           \
-                      -volname ${BootDir} \
+      hdiutil create ${BootDir}                  \
+                      -volname ${BootDir}        \
                       -type SPARSE               \
                       -size 1g                   \
                       -fs "MS-DOS FAT16"         \
+                      -quiet                     \
                       -puppetstrings
    fi
 
@@ -1268,11 +1424,12 @@ function createRootPVolume()
       sleep 3
 
    else
-      hdiutil create ${RootDir}           \
-                      -volname ${RootDir} \
+      hdiutil create ${RootDir}                  \
+                      -volname ${RootDir}        \
                       -type SPARSE               \
                       -size 7g                   \
                       -fs HFSX                   \
+                      -quiet                     \
                       -puppetstrings
    fi
 
@@ -1572,12 +1729,12 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       \?)
-          printf "${KRED}Invalid option: ${KNRM}-$OPTARG${KNRM}\n"
+          printf "${KRED}Invalid option: ${KNRM}-${OPTARG}\n"
           exit 1
           ;;
           #####################
       :)
-          printf "${KRED}Option ${KNRM}-$OPTARG {$KRED} requires an argument.\n" 
+          printf "${KRED}Option ${KNRM}-${OPTARG} requires an argument.\n" 
           exit 1
           ;;
           #####################
