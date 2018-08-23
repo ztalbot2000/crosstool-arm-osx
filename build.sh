@@ -10,21 +10,20 @@
 #  Check the README.md for the latest status of this goal.
 #
 #  This script is based on several scripts and forum posts I've found around
-#  the web, the most significant being: 
+#  the web, Most are filled with old disinformation and say that this is futile,
+#  use a VM instead.  This is why there are tons of comments through out as
+#  I try to navigate all the mindfields. The major ones are:
 #
-#  http://okertanov.github.com/2012/12/24/osx-crosstool-ng/
-#  http://crosstool-ng.org/hg/crosstool-ng/file/715b711da3ab/docs/MacOS-X.txt
-#  http://gnuarmeclipse.livius.net/wiki/Toolchain_installation_on_OS_X
-#  http://elinux.org/RPi_Kernel_Compilation
-#
-#
-#  And serveral articles that mostly dealt with the MentorGraphics tool, which I
-#  I abandoned in favor of crosstool-ng
+#     1) Old tools, missing tools and libraries like xz,objcopy,elf.h ...
+#     2) No ext2,3,4 support.
+#     3) HSFX is not case sensitive .
+#     4) The number of packages and options are unfathonable.
+#     5) Not enough M5 washers.
 #
 #  The process:
 #
 #  (1) Create a case sensitive volume using hdiutil and mount it to /Volumes/$Volume[Base]
-#      where brew and crosstool-ng will be placed so as not to interfere
+#      where brew tools and crosstool-ng will be placed so as not to interfere
 #      with any existing installations
 #
 #  (2) Create another case sensitive volume where the cross compilere created with
@@ -34,13 +33,15 @@
 #
 #  (4) Blast an image to an SD card that includes Raspbian, LinuxCnC and other tools.
 #
-#     Start by executing bash .build.sh and follow along.  This tool does
+#     Start by executingi "bash .build.shi" and follow along.  This tool does
 #     try to continue where it left off each time.
 #
 #
 #  License:
 #      Please feel free to use this in any way you see fit.
 #
+
+# Exit immediately if a command exits with a non-zero status
 set -e
 
 # Exit immediately for unbound variables.
@@ -119,6 +120,7 @@ OutputDir='x-tools'
 # 
 BrewHome="/Volumes/${VolumeBase}/brew"
 export HOMEBREW_CACHE=${TarBallSourcesPath}
+# Never found anything there, but was recommnded when setting HOMEBREW_CACHE
 export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs 
 
 # This is required so brew can be installed elsewhere
@@ -134,7 +136,7 @@ CrossToolVersion="crosstool-ng-1.23.0"
 # crosstool-ng .config file
 CrossToolSourceDir="crosstool-ng-src"
 
-# See note just above why this is duplicated
+# Duplicated to allow altering included ct-ng config files
 CT_TOP_DIR="/Volumes/CrossToolNG"
 CT_TOP_DIR="/Volumes/${Volume}"
 
@@ -463,10 +465,14 @@ function createCaseSensitiveVolume()
 # sha2 is for sha512
 # bison on osx was too old (2.3) and gcc compiler did not like it
 # findutils is for xargs, needed by make modules in Raspbian
+# gmp is for isl
+# isl is for gcc
+# mpc is for gcc
+# gcc for Raspbian to solve error PIE disabled. Absolute addressing (perhaps -mdynamic-no-pic)
 #
-# for Raspbian tools - libelf ncurses
+# for Raspbian tools - libelf ncurses gcc
 # for xconfig - QT   (takes hours). That would be up to you.
-BrewTools="coreutils findutils libtool grep ncurses gettext xz gnu-sed gawk binutils help2man autoconf automake bison bash wget sha2"
+BrewTools="coreutils findutils libtool grep ncurses gettext xz gnu-sed gawk binutils gmp isl mpc help2man autoconf automake bison bash wget sha2"
 
 function buildBrewTools()
 {
@@ -509,7 +515,10 @@ function buildBrewTools()
    $BrewHome/bin/brew update > /tmp/brew_update.log 2>&1 &
    pid="$!"
    waitForPid "$pid"
+
+   # Exit immediately if a command exits with a non-zero status
    set -e
+
    if [ $rc != 0 ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} brew update tools failed. Check the log for details\n"
       exit $rc
@@ -542,17 +551,14 @@ function buildBrewTools()
    # $BrewHome/bin/brew install --with-default-names $BrewTools && true
    # $BrewHome/bin/brew install $BrewTools --build-from-source --with-real-names && true
    # --default-names was deprecated
-   printf "${KBLU}Installing brew tools. This may take quite a while ${KNRM} to ${BrewHome} ... Logging to /tmp/brewToolsInstall.log\n"
-   $BrewHome/bin/brew install $BrewTools  --build-from-source --with-default-names > /tmp/brewToolsInsrall.log 2>&1 &
-   pid="$!"
-   waitForPid "$pid"
-   if [ $rc != 0 ]; then
-      printf "${KRED}Error : [${rc}] ${KNRM} brew tools failed. Check the log for details\n"
-      exit $rc
-   fi
+   printf "${KBLU}Installing brew tools. This may take quite a couple of hours ${KNRM} to ${BrewHome} ... \n"
+   printf "${KNRM}gcc takes the longest and is requires as Apple's gcc has options like pic\n"
+   printf "${KNRM}set differently that cannot be reset when building Raspbian.\n"
+   printf "${KNRM}This is also why there is a seperate Volume for brew to not have to rebuild it .\n"
+   $BrewHome/bin/brew install $BrewTools  --build-from-source --with-default-names 
    printf "${KGRN} done ${KNRM}\n"
 
-   # change to Exit immediately if a command exits with a non-zero status.
+   # Exit immediately if a command exits with a non-zero status
    set -e
 
    printf "${KBLU}Checking for ${KNRM}$BrewHome/bin/gsha512sum ${KNRM} ..."
@@ -965,6 +971,7 @@ function downloadAndBuildzlib
 
      printf "${KBLU} Configuring zlib ${KNRM} Logging to /tmp/zlib_config.log \n"
     cd "${CT_TOP_DIR}/src/zlib-1.2.11"
+
     # I dont know why this is true, but configure fails otherwise
     set +e
     CHOST=${ToolchainName} ./configure \
@@ -976,20 +983,27 @@ function downloadAndBuildzlib
 
     pid="$!"
     waitForPid "$pid"
+
+    # Exit immediately if a command exits with a non-zero status
     set -e
+
     if [ $rc != 0 ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
        exit $rc
     fi
 
     printf "${KBLU} Building zlib ${KNRM} Logging to /tmp/zlib_build.log \n"
+
     # I dont know why this is true, but build fails otherwise
     set +e
     make > /tmp/zlib_build.log 2>&1 &
 
     pid="$!"
     waitForPid "$pid"
+
+    # Exit immediately if a command exits with a non-zero status
     set -e
+
     if [ $rc != 0 ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details\n"
        exit $rc
@@ -999,13 +1013,17 @@ function downloadAndBuildzlib
 
 
     printf "${KBLU} Installing zlib ${KNRM} Logging to /tmp/zlib_install.log \n"
+
     # I dont know why this is true, but install fails otherwise
     set +e
     make install > /tmp/zlib_install.log 2>&1 &
 
     pid="$!"
     waitForPid "$pid"
+ 
+    # Exit immediately if a command exits with a non-zero status
     set -e
+
     if [ $rc != 0 ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details\n"
        exit $rc
@@ -1108,12 +1126,15 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
 
          cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
          printf "${KBLU}Extracting saved ${KNRM} ${TarBallSourcesPath}/Raspbian.tar.xz ... Logging to /tmp/Raspbian_extract.log\n"
+
          # I dont know why this is true, but tar fails otherwise
          set +e
          tar -xzf ${TarBallSourcesPath}/Raspbian.tar.xz  > /tmp/Raspbian_extract.log 2>&1 &
 
          pid="$!"
          waitForPid ${pid}
+
+         # Exit immediately if a command exits with a non-zero status
          set -e
 
          if [ $rc != 0 ]; then
@@ -1147,12 +1168,16 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          # zcat rt.patch.gz | patch -p1
 
          printf "${KBLU}Saving Raspbian source ${KNRM} to ${TarBallSourcesPath}/Raspbian.tar.xz ...  Logging to raspbian_compress.log\n"
+
          # I dont know why this is true, but tar fails otherwise
          set +e
          tar -cJf "${TarBallSourcesPath}/Raspbian.tar.xz" linux  &
          pid="$!"
          waitForPid "$pid"
+
+         # Exit immediately if a command exits with a non-zero status
          set -e
+
          if [ $rc != 0 ]; then
             printf "${KRED}Error : [${rc}] ${KNRM} save failed. Check the log for details\n"
             exit $rc
@@ -1241,7 +1266,6 @@ function configureRaspbianKernel
 
    KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
    KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
-   HOSTCC=${ToolchainName}-gcc \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
@@ -1251,7 +1275,6 @@ function configureRaspbianKernel
    printf "${KBLU}Make modules in ${PWD}${KNRM}\n"
    KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
    KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
-   HOSTCC=${ToolchainName}-gcc \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
@@ -1261,7 +1284,6 @@ function configureRaspbianKernel
    printf "${KBLU}Make dtbs in ${PWD}${KNRM}\n"
    KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
    KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
-   HOSTCC=${ToolchainName}-gcc \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
@@ -1405,7 +1427,7 @@ function updateBrewForEXT2()
       exit 0
    fi
 
-   # change to Exit immediately if a command exits with a non-zero status.
+   # Exit immediately if a command exits with a non-zero status
    set -e
 
    checkExt2InstallForOSX
@@ -1594,10 +1616,15 @@ while getopts "$OPTSTRING" opt; do
           #####################
       b)
           # Check next positional parameter
+
           # Why would checking for an unbound variable cause an unbound variable?
           set +u
+
           nextOpt=${!OPTIND}
+
+          # Exit immediately for unbound variables.
           set -u
+
           # existing or starting with dash?
           if [[ -n $nextOpt && $nextOpt != -* ]]; then
              OPTIND=$((OPTIND + 1))
@@ -1664,10 +1691,14 @@ while getopts "$OPTSTRING" opt; do
           #####################
       b)
           # Check next positional parameter
+
           # Why would checking for an unbound variable cause an unbound variable?
           set +u
           nextOpt=${!OPTIND}
+
+          # Exit immediately for unbound variables.
           set -u
+
           # existing or starting with dash? 
           if [[ -n $nextOpt && $nextOpt != -* ]]; then
              OPTIND=$((OPTIND + 1))
@@ -1731,7 +1762,7 @@ while getopts "$OPTSTRING" opt; do
           testBuild   # testBuild sets rc
           if [ ${rc} == '0' ]; then
              printf "${KGRN} Wahoo ! it works!! ${KNRM}\n"
-          exit 0
+             exit 0
           else
              printf "${KRED} Boooo ! it failed :-( ${KNRM}\n"
              exit -1
