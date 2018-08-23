@@ -134,7 +134,10 @@ CrossToolVersion="crosstool-ng-1.23.0"
 # crosstool-ng .config file
 CrossToolSourceDir="crosstool-ng-src"
 
+# See note just above why this is duplicated
+CT_TOP_DIR="/Volumes/CrossToolNG"
 CT_TOP_DIR="/Volumes/${Volume}"
+
 
 
 # Where Raspbian boot files will be placed
@@ -246,18 +249,25 @@ function waitForPid()
    pid=$1
    spindleCount=0
    spindleArray=("|" "/" "-" "\\")
+   STARTTIME=$(date +%s)
 
    while ps -p $pid >/dev/null; do
-      sleep 0.5
-      printf  "\r${KGRN}"
-      printf ${spindleArray[$spindleCount]}
-      printf  " ${KNRM}"
+      sleep 1.0
+
+      SECONDS=$(($(date +%s) - $STARTTIME))
+      let S=${SECONDS}%60
+      let MM=${SECONDS}/60 # Total number of minutes
+      let M=${MM}%60
+      let H=${MM}/60
+      printf "\r${KNRM}[ "
+      [ "$H" -gt "0" ] && printf "%02d:" $H
+      printf "%02d:%02d ] ${KGRN}%s${KNRM}" $M $S ${spindleArray[$spindleCount]}
       spindleCount=$((spindleCount + 1))
       if [[ $spindleCount -eq ${#spindleArray[*]} ]]; then
          spindleCount=0
       fi
    done
-   printf "\r${KNRM}"
+   printf "\n${KNRM}"
 
    # Get the true return code of the process
    wait $pid
@@ -492,11 +502,14 @@ function buildBrewTools()
    printf "They are created by brew as it is not in /local or with sudo ${KNRM}\n"
    printf "\n"
 
+   # I dont know why this is true, but tar fails otherwise
+   set +e
 
    printf "${KBLU}Running Brew update${KNRM} ... Logging to /tmp/brew_update.log \n"
    $BrewHome/bin/brew update > /tmp/brew_update.log 2>&1 &
    pid="$!"
    waitForPid "$pid"
+   set -e
    if [ $rc != 0 ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} brew update tools failed. Check the log for details\n"
       exit $rc
@@ -890,19 +903,18 @@ function buildToolchain()
 
    if [ "$1" == "list-steps" ]; then
       ct-ng "$1"
-   else
-      
-      printf "${KBLU} Executing ct-ng to $1 cross compiler ${KNRM} Logging to /tmp/ct-ng.log \n"
-      ct-ng "$1" > /tmp/ct-ng.log 2>&1 &
-      pid="$!"
-      waitForPid "$pid"
-      if [ $rc != 0 ]; then
-         printf "${KRED}Error : [${rc}] ${KNRM} ct-ng $1 failed. Check the log for details\n"
-         exit $rc
-      fi
-      printf "And if all went well, you are done! Go forth and cross compile ${KNRM}\n"
-      printf "Raspbian if you so wish with: ./build.sh -b Raspbian ${KNRM}\n"
+      return
    fi
+   if [ "$1" == "build" ]; then
+      printf "${KBLU} Executing ct-ng build to build the cross compiler ${KNRM}\n"
+   else
+      printf "${KBLU} Executing ct-ng $1 ${KNRM}\n"
+   fi
+      
+   ct-ng "$1" 
+
+   printf "And if all went well, you are done! Go forth and cross compile ${KNRM}\n"
+   printf "Raspbian if you so wish with: ./build.sh -b Raspbian ${KNRM}\n"
 }
 
 function buildLibtool
@@ -1039,9 +1051,10 @@ function downloadRaspbianKernel
 {
 RaspbianURL="https://github.com/raspberrypi/linux.git"
 
-   printf "${KMAG}****************************************************************************************************** ${KNRM}\n"
-   printf "${KMAG}* WHEN CONFIGURING THE RASPIAN KERNEL YOU MUST SET THE COMPILER PREFIXTO: ${KRED} ${ToolchainName}-  ${KNRM}\n"
-   printf "${KMAG}****************************************************************************************************** ${KNRM}\n"
+   printf "${KMAG}*******************************************************************************${KNRM}\n"
+   printf "${KMAG}* WHEN CONFIGURING THE RASPIAN KERNEL YOU MUST SET THE \n"
+   printf "${KMAG}*  COMPILER PREFIX TO: ${KRED} ${ToolchainName}-  ${KNRM}\n"
+   printf "${KMAG}*******************************************************************************${KNRM}\n"
 
    # This is so very important that we must make sure you remember to set the compiler prefix
    # Maybe at a later date this will be automated
@@ -1058,29 +1071,40 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
       printf "${KBLU}Creating ${KNRM}${RaspbianSrcDir} ... "
       mkdir "${RaspbianSrcDir}"
       printf "${KGRN} done ${KNRM}\n"
+   else
+      printf "${KGRN} found ${KNRM}\n"
    fi
 
-   cd "${RaspbianSrcDir}"
+   cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
 
    printf "${KBLU}Checking for ${KNRM} ${RaspbianSrcDir}/linux ... "
-   if [ -d "${RaspbianSrcDir}/linux" ]; then
+   if [ -d "${CT_TOP_DIR}/${RaspbianSrcDir}/linux" ]; then
+      cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
+      printf "${KGRN} found ${KNRM}\n"
       printf "${KRED}WARNING ${KNRM}Path already exists ${RaspbianSrcDir} ${KNRM}\n"
       printf "        A fetch will be done instead to keep tree up to date\n"
       printf "\n"
-      cd "${RaspbianSrcDir}/linux"
+      cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
       git fetch
     
    else
-      printf "${KBLU}Checking for saved ${KNRM} linux.tar.xz ... \n"
+      printf "${KGRN} not found -OK  ${KNRM}\n"
+      printf "${KBLU}Checking for saved ${KNRM} linux.tar.xz ... "
       if [ -f "${TarBallSourcesPath}/linux.tar.xz" ]; then
          printf "${KGRN} found ${KNRM}\n"
 
-         printf "${KBLU}Extracting saved ${KNRM} linux.tar.xz ... Logging to /tmp/linux_extract.log\n"
-         tar -xzf "${TarBallSourcesPath}/linux.tar.xz" > /tmp/linux_extract.log 2>&1 &
+         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+         printf "${KBLU}Extracting saved ${KNRM} ${TarBallSourcesPath}/linux.tar.xz ... Logging to /tmp/linux_extract.log\n"
+         # I dont know why this is true, but tar fails otherwise
+         set +e
+         tar -xzf ${TarBallSourcesPath}/linux.tar.xz  > /tmp/linux_extract.log 2>&1 &
+
          pid="$!"
-         waitForPid "$pid"
+         waitForPid ${pid}
+         set -e
+
          if [ $rc != 0 ]; then
-            printf "${KRED}Error : [${rc}] ${KNRM} extract failed. Check the log for details\n"
+            printf "${KRED}Error : [${rc}] ${KNRM} extract failed. \n"
             exit $rc
          fi
  
@@ -1088,15 +1112,11 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          
       else
          printf "${KYEL} not found ${KNRM}\n"
-         printf "${KBLU}Cloning Raspbian from git ${KNRM} ... Logging to /tmp/raspbian_git.log\n"
+         printf "${KBLU}Cloning Raspbian from git ${KNRM} ... \n"
+         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
 
-         git clone --quiet  ${RaspbianURL} > /tmp/raspbian_gitlog 2>&1 &
-         pid="$!"
-         waitForPid "$pid"
-         if [ $rc != 0 ]; then
-            printf "${KRED}Error : [${rc}] ${KNRM} clone failed. Check the log for details\n"
-            exit $rc
-         fi
+         git clone --depth=1 ${RaspbianURL} 
+
          printf "${KGRN} done ${KNRM}\n"
 
          # Fix missing dtb's 
@@ -1114,9 +1134,12 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          # zcat rt.patch.gz | patch -p1
 
          printf "${KBLU}Saving Raspbian source ${KNRM} to ${TarBallSourcesPath}/linux.tar.xz ...  Logging to raspbian_compress.log\n"
-         tar -cJf "${TarBallSourcesPath}/linux.tar.xz" linux > /tmp/raspbian_compress.log 2>&1 &
+         # I dont know why this is true, but tar fails otherwise
+         set +e
+         tar -cJf "${TarBallSourcesPath}/linux.tar.xz" linux  &
          pid="$!"
          waitForPid "$pid"
+         set -e
          if [ $rc != 0 ]; then
             printf "${KRED}Error : [${rc}] ${KNRM} save failed. Check the log for details\n"
             exit $rc
@@ -1182,13 +1205,21 @@ function configureRaspbianKernel
 
    export CROSS_PREFIX=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-
 
+   printf "${KBLU}Checkingo for an existing .config file ${KNRM} ... "
+   if [ -f .config ]; then
+      printf "${KYEL} found ${KNRM} \n""
+      printf "${KNRM} make mproper & bcm2709_defconfig  ${KNRM} will not be done \n""
+      printf "${KNRM} to protect previous changes  ${KNRM} \n""
+   else
+      printf "${KGRN} not found ${KNRM} \n""
+      printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
+      export LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
+      export LFS_LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
+      make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
+      make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+   fi
 
-   printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
-   export LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
-   export LFS_LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
-   # make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
-   make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
-
+   printf "${KBLU}Running make nconfig ${KNRM} \n"
    # This cannot include ARCH= ... as it runs on OSX
    make nconfig
 
