@@ -965,6 +965,8 @@ function downloadAndBuildzlib
 
      printf "${KBLU} Configuring zlib ${KNRM} Logging to /tmp/zlib_config.log \n"
     cd "${CT_TOP_DIR}/src/zlib-1.2.11"
+    # I dont know why this is true, but configure fails otherwise
+    set +e
     CHOST=${ToolchainName} ./configure \
           --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
           --static \
@@ -974,16 +976,20 @@ function downloadAndBuildzlib
 
     pid="$!"
     waitForPid "$pid"
+    set -e
     if [ $rc != 0 ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
        exit $rc
     fi
 
     printf "${KBLU} Building zlib ${KNRM} Logging to /tmp/zlib_build.log \n"
+    # I dont know why this is true, but build fails otherwise
+    set +e
     make > /tmp/zlib_build.log 2>&1 &
 
     pid="$!"
     waitForPid "$pid"
+    set -e
     if [ $rc != 0 ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details\n"
        exit $rc
@@ -993,10 +999,13 @@ function downloadAndBuildzlib
 
 
     printf "${KBLU} Installing zlib ${KNRM} Logging to /tmp/zlib_install.log \n"
+    # I dont know why this is true, but install fails otherwise
+    set +e
     make install > /tmp/zlib_install.log 2>&1 &
 
     pid="$!"
     waitForPid "$pid"
+    set -e
     if [ $rc != 0 ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details\n"
        exit $rc
@@ -1093,15 +1102,15 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
     
    else
       printf "${KGRN} not found -OK  ${KNRM}\n"
-      printf "${KBLU}Checking for saved ${KNRM} linux.tar.xz ... "
-      if [ -f "${TarBallSourcesPath}/linux.tar.xz" ]; then
+      printf "${KBLU}Checking for saved ${KNRM} Raspbian.tar.xz ... "
+      if [ -f "${TarBallSourcesPath}/Raspbian.tar.xz" ]; then
          printf "${KGRN} found ${KNRM}\n"
 
          cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
-         printf "${KBLU}Extracting saved ${KNRM} ${TarBallSourcesPath}/linux.tar.xz ... Logging to /tmp/linux_extract.log\n"
+         printf "${KBLU}Extracting saved ${KNRM} ${TarBallSourcesPath}/Raspbian.tar.xz ... Logging to /tmp/Raspbian_extract.log\n"
          # I dont know why this is true, but tar fails otherwise
          set +e
-         tar -xzf ${TarBallSourcesPath}/linux.tar.xz  > /tmp/linux_extract.log 2>&1 &
+         tar -xzf ${TarBallSourcesPath}/Raspbian.tar.xz  > /tmp/Raspbian_extract.log 2>&1 &
 
          pid="$!"
          waitForPid ${pid}
@@ -1137,10 +1146,10 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          # wget -O rt.patch.gz https://www.kernel.org/pub/linux/kernel/projects/rt/4.14/older/patch-4.14.18-rt15.patch.gz
          # zcat rt.patch.gz | patch -p1
 
-         printf "${KBLU}Saving Raspbian source ${KNRM} to ${TarBallSourcesPath}/linux.tar.xz ...  Logging to raspbian_compress.log\n"
+         printf "${KBLU}Saving Raspbian source ${KNRM} to ${TarBallSourcesPath}/Raspbian.tar.xz ...  Logging to raspbian_compress.log\n"
          # I dont know why this is true, but tar fails otherwise
          set +e
-         tar -cJf "${TarBallSourcesPath}/linux.tar.xz" linux  &
+         tar -cJf "${TarBallSourcesPath}/Raspbian.tar.xz" linux  &
          pid="$!"
          waitForPid "$pid"
          set -e
