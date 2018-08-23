@@ -913,8 +913,12 @@ function buildToolchain()
       
    ct-ng "$1" 
 
-   printf "And if all went well, you are done! Go forth and cross compile ${KNRM}\n"
-   printf "Raspbian if you so wish with: ./build.sh -b Raspbian ${KNRM}\n"
+   printf "${KNRM}And if all went well, you are done! Go forth and cross compile ${KNRM}\n"
+   if [ "${ToolchainNameOpt}" == "n" ]; then
+      printf "Raspbian if you so wish with: ./build.sh -b Raspbian ${KNRM}\n"
+   else
+      printf "Raspbian if you so wish with: ./build.sh -T \"${ToolchainName}\" -b Raspbian ${KNRM}\n"
+   fi
 }
 
 function buildLibtool
