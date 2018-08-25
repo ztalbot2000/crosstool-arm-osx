@@ -1578,14 +1578,21 @@ function installRaspbianKernel()
    printf "${KGRN} found ${KNRM}\n"
 
 
-   printf "${KBLU}Copying Raspbian file ${KNRM}\n"
    
 
    # FIXME add sudo later
+   printf "${KBLU}Copying Raspbian file ${KNRM} *.dtb to ${BootFS} ... "
    cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/*.dtb ${BootFS}/
+   printf "${KGRN} done ${KNRM}\n"
+   printf "${KBLU}Copying Raspbian file ${KNRM} overlays/*.dtb* to ${BootFS} ... "
    cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/*.dtb* ${BootFS}/overlays/
+   printf "${KGRN} done ${KNRM}\n"
+   printf "${KBLU}Copying Raspbian file ${KNRM} overlays/README to ${BootFS} ... "
    cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/README ${BootFS}/overlays/
+   printf "${KGRN} done ${KNRM}\n"
+   printf "${KBLU}Copying Raspbian file ${KNRM} zImage to ${BootFS} ... "
    cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${BootFS}/kernel7.img
+   printf "${KGRN} done ${KNRM}\n"
 }
 function checkExt2InstallForOSX()
 {
