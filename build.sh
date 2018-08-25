@@ -211,6 +211,7 @@ cat <<'HELP_EOF'
      -b list-steps      * This could also be list-steps to show steps available. 
      -b raspbian>    - Download and build Raspbian.
      -t              - After the build, run a Hello World test on it.
+     -t gcc          - test the gcc in this scripts path.
      -T <Toolchain>  - The ToolchainName created.
                        The default used is: armv8-rpi3-linux-gnueabihf
                        The actual result is based on what is in your
@@ -1360,7 +1361,7 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
       git fetch
     
    else
-      printf "${KGRN} not found -OK  ${KNRM}\n"
+      printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KBLU}Checking for saved ${KNRM} Raspbian.tar.xz ... "
       if [ -f "${TarBallSourcesPath}/Raspbian.tar.xz" ]; then
          printf "${KGRN} found ${KNRM}\n"
@@ -1486,14 +1487,14 @@ function configureRaspbianKernel
 
    printf "${KBLU}Checkingo for an existing .config file ${KNRM} ... "
    if [ -f .config ]; then
-      printf "${KYEL} found ${KNRM} \n""
-      printf "${KNRM} make mproper & bcm2709_defconfig  ${KNRM} will not be done \n""
-      printf "${KNRM} to protect previous changes  ${KNRM} \n""
+      printf "${KYEL} found ${KNRM} \n"
+      printf "${KNRM} make mproper & bcm2709_defconfig  ${KNRM} will not be done \n"
+      printf "${KNRM} to protect previous changes  ${KNRM} \n"
    else
-      printf "${KGRN} not found ${KNRM} \n""
+      printf "${KGRN} not found ${KNRM} \n"
       printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
-      export LFS_CFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include
-      export LFS_LDFLAGS=-I${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/lib
+      export CFLAGS=-Wl,-no_pie
+      export LDFLAGS=-Wl,-no_pie
       make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
       make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
    fi
@@ -1975,7 +1976,7 @@ while getopts "$OPTSTRING" opt; do
              raspbianClean
           fi
 
-          printf "${KYEL}Checking for cross compiler again ${KNRM} ... "
+          printf "${KBLU}Checking for cross compiler ${KNRM} ... "
           testBuild   # testBuild sets rc
           if [ ${rc} == '0' ]; then
              printf "${KGRN}  found ${KNRM}\n"
