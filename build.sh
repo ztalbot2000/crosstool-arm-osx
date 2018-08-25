@@ -364,9 +364,6 @@ function createCaseSensitiveVolumeBase()
     if [  -d "${VolumeDir}" ]; then
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${VolumeDir}${KNRM}\n"
       
-       # Give a couple of seconds for the user to react
-       sleep 3
-
        return;
     fi
 
@@ -423,9 +420,6 @@ function createCaseSensitiveVolume()
     if [  -d "${VolumeDir}" ]; then
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${VolumeDir}${KNRM}\n"
       
-       # Give a couple of seconds for the user to react
-       sleep 3
-
        return;
     fi
 
@@ -664,6 +658,145 @@ function buildBrewTools()
       printf "${KGRN} found ${KNRM}\n"
    fi
 
+   
+   printf "${KBLU}Checking for ${KNRM}${BrewHome}/opt/gcc/bin/gcc-8 ...${KNRM}"
+   if [ -f "${BrewHome}/opt/gcc/bin/gcc-8" ]; then
+      printf "${KGRN}found${KNRM}\n"
+      printf "${KBLU}Linking gcc-8 tools to gcc${KNRM} ... "
+      rc="n"
+      cd "${BrewHome}/opt/gcc/bin"
+      for fn in `ls *-8`; do
+         newFn=${fn/-8}
+         if [ ! -L "${newFn}" ]; then
+            if [ $rc == "n" ]; then
+               printf "${KGRN} found ${KNRM}\n"
+            fi
+            rc="y"
+            printf "${KNRM}linking ${fn} to ${newFn} ... "
+            ln -sf ${fn} ${newFn}
+            printf "${KGRN} done ${KNRM}\n"
+         fi
+      done
+      if [ $rc == "n" ]; then
+         printf "${KGRN}links already in place${KNRM}\n"
+      fi
+   else
+      printf "${KYEL}Not found${KNRM}\n"
+   fi
+
+
+}
+# Brew binutils does not build ld, so rebuild them again
+# Trying to build them first before gcc, causes ld not
+# to be built.
+function buildBinutils()
+{
+   binutilsDir="binutils-2.30"
+   binutilsFile="binutils-2.30.tar.xz"
+   binutilsURL="https://mirror.sergal.org/gnu/binutils/${binutilsFile}"
+
+   cd /Volumes/${VolumeBase}
+   printf "${KBLU}Checking for a working ld ${KNRM} ... "
+   if [ -x "${BrewHome}/bin/ld" ]; then
+      printf "${KGRN} found ${KNRM}\n"
+      return
+   fi
+   printf "${KYEL} not found ${KNRM}\n"
+
+   printf "${KBLU}Checking for a existing binutils source ${KNRM} ${CT_TOP_DIR}/src}/${binutilsDir} ... "
+   if [ -d "${CT_TOP_DIR}/src/${binutilsDir}" ]; then
+      printf "${KGRN} found ${KNRM}\n"
+   else
+      printf "${KYEL} not found ${KNRM}\n"
+
+      printf "${KBLU}Checking for a saved ${binutilsFile} ${KNRM} ... "
+      if [ -f "${TarBallSourcesPath}/${binutilsFile}" ]; then
+         printf "${KGRN} found ${KNRM}\n"
+      else
+         printf "${KYEL} not found ${KNRM}\n"
+         printf "${KBLU}Downloading ${binutilsFile} ${KNRM} ... "
+         curl -Lsf "${binutilsURL}" -o "${TarBallSourcesPath}/${binutilsFile}"
+         printf "${KGRN} done ${KNRM}\n"
+      fi
+      printf "${KBLU}Extracting ${binutilsFile} ${KNRM} ... Logging to /tmp/binutils_extract.log\n"
+      # I dont know why this is true, but configure fails otherwise
+      set +e
+
+      tar -xzf ${TarBallSourcesPath}/${binutilsFile} -C${CT_TOP_DIR}/src > /tmp/binutils_extract.log 2>&1 &
+      pid="$!"
+
+      waitForPid "$pid"
+
+      # Exit immediately if a command exits with a non-zero status
+      set -e
+
+      if [ $rc != 0 ]; then
+         printf "${KRED}Error : [${rc}] ${KNRM} extract failed. Check the log for details\n"
+         exit $rc
+      fi
+      printf "${KGRN} done ${KNRM}\n"
+   fi
+   
+   printf "${KBLU}Configuring ${binutilsDir} ${KNRM} ... Logging to /tmp/binutils_configure.log\n"
+
+   # I dont know why this is true, but configure fails otherwise
+   set +e
+
+   cd "${CT_TOP_DIR}/src/${binutilsDir}"
+   # EPREFIX='' ./configure --prefix=${BrewHome} --enable-ld=yes --disable-werror  --program-prefix='' > /tmp/binutils_configure.log 2>&1 &
+
+   # EPREFIX='' ./configure --prefix=${BrewHome} --enable-ld=yes --target=x86_64-unknown-elf --disable-werror  --program-prefix='' > /tmp/binutils_configure.log 2>&1 &
+
+   EPREFIX='' ./configure --prefix=${BrewHome} --enable-ld=yes --target=x86_64-unknown-elf --disable-werror --enable-multilib --program-prefix='' > /tmp/binutils_configure.log 2>&1 &
+   pid="$!"
+
+   waitForPid "$pid"
+
+   # Exit immediately if a command exits with a non-zero status
+   set -e
+
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
+      exit $rc
+   fi
+   printf "${KGRN} done ${KNRM}\n"
+
+   printf "${KBLU}Compiling ${binutilsDir}  ${KNRM} ... Logging to /tmp/binutils_compile.log\n"
+
+   # I dont know why this is true, but configure fails otherwise
+   set +e
+
+   make > /tmp/binutils_compile.log 2>&1 &
+   pid="$!"
+   waitForPid "$pid"
+
+   # Exit immediately if a command exits with a non-zero status
+   set -e
+
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details\n"
+      exit $rc
+   fi
+   printf "${KGRN} done ${KNRM}\n"
+
+   printf "${KBLU}Installing ${binutilsDir} ${KNRM} ... Logging to /tmp/binutils_install.log\n"
+
+   # I dont know why this is true, but make fails otherwise
+   set +e
+
+   make install > /tmp/binutils_install.log 2>&1 &
+   pid="$!"
+   waitForPid "$pid"
+
+   # Exit immediately if a command exits with a non-zero status
+   set -e
+
+   if [ $rc != 0 ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
+      exit $rc
+   fi
+   printf "${KGRN} done ${KNRM}\n"
+
 }
 function downloadCrossTool_LATEST()
 {  
@@ -738,19 +871,27 @@ function buildCrosstool()
    # It is strange that gettext is put in opt
    gettextDir=${BrewHome}/opt/gettext
    
-   printf "${KBLU} Executing configure --with-libintl-prefix=$gettextDir ${KNRM}\n"
+   printf "${KBLU} Executing configure for crosstool-ng ${KNRM} --with-libintl-prefix ... \n"
 
    # export LDFLAGS
    # export CPPFLAGS
+
+   # I dont know why this is true, but configure fails otherwise
+   set +e
 
    # --with-libintl-prefix should have been enough, but it seems LDFLAGS and
    # CPPFLAGS is required too to fix libintl.h not found
    LDFLAGS="  -L${BrewHome}/opt/gettext/lib -lintl " \
    CPPFLAGS=" -I${BrewHome}/opt/gettext/include" \
-   ./configure  --with-libintl-prefix=$gettextDir --prefix="/Volumes/${VolumeBase}/ctng" \
+   ./configure --with-libintl-prefix=$gettextDir \
+               --prefix="/Volumes/${VolumeBase}/ctng" \
    > /tmp/ct-ng_config.log 2>&1 &
    pid="$!"
    waitForPid "$pid"
+
+   # Exit immediately if a command exits with a non-zero status
+   set -e
+
    if [ $rc != 0 ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
       exit $rc
@@ -773,9 +914,17 @@ function buildCrosstool()
    #        CFLAGS="-std=c99 -Doffsetof=__builtin_offsetof"
 
    printf "${KBLU}Compiling crosstool-ng ${KNRM}in ${PWD} ... Logging to /tmp/ctng_build.log\n"
+
+   # I dont know why this is true, but make fails otherwise
+   set +e
+
    make > /tmp/ctng_build.log 2>&1 &
    pid="$!"
    waitForPid "$pid"
+
+   # Exit immediately if a command exits with a non-zero status
+   set -e
+
    if [ $rc != 0 ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details\n"
       exit $rc
@@ -783,9 +932,17 @@ function buildCrosstool()
    printf "${KGRN} done ${KNRM}\n"
 
    printf "${KBLU}Installing  crosstool-ng ${KNRM}in /Volumes/${VolumeBase}/ctng ... Logging to /tmp/ctng_install.log\n"
+
+   # I dont know why this is true, but make fails otherwise
+   set +e
+
    make install > /tmp/ctng_install.log 2>&1 &
    pid="$!"
    waitForPid "$pid"
+
+   # Exit immediately if a command exits with a non-zero status
+   set -e
+
    if [ $rc != 0 ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details\n"
       exit $rc
@@ -1066,7 +1223,7 @@ using namespace std;
 
 int main ()
 {
-  cout << "Hello World!";
+  cout << "Hello ARM World!";
   return 0;
 }
 HELLO_WORLD_EOF
@@ -1077,6 +1234,90 @@ HELLO_WORLD_EOF
    rc=$?
 
 }
+function testCompilerForPIE
+{
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$PATH 
+
+
+cat <<'TEST_PIE_EOF' > /tmp/PIEWorld.cpp
+#include <iostream>
+using namespace std;
+
+int local_global_var = 0x20;
+ 
+int local_global_func(void) { return 0x30; }
+ 
+int
+main(void) {
+    int x = local_global_func();
+    local_global_var = 0x10;
+
+    cout << "Hello PIE world!\n";
+    return 0;
+}
+
+TEST_PIE_EOF
+
+
+   printf "${KBLU}Testing Compiler in PATH for pie ${KNRM} CMD = g++ /tmp/PIEWorld.cpp -o /tmp/PIEWorld ... "
+
+   g++ /tmp/PIEWorld.cpp -o /tmp/PIEWorld
+   rc=$?
+   if [ ${rc} != '0' ]; then
+      printf "${KRED} failed ${KNRM}\n"
+      return ${rc}
+   fi
+   printf "${KGRN} passed ${KNRM}\n"
+
+   printf "${KBLU}Testing executable for pie ${KNRM} CMD = /tmp/PIEWorld\n"
+   /tmp/PIEWorld
+   rc=$?
+}
+
+
+function testgcc
+{
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$PATH 
+
+   printf "${KBLU}Finding Compiler in PATH ${KNRM} CMD = which g++ ... "
+   whichgcc=$(which g++)
+   if [ "${whichgcc}" == "" ]; then
+      printf "${KRED} failed ${KNRM}\n"
+      printf "${KRED} No executable compiler found. ${KNRM}\n"
+      rc='-1'
+      return
+   fi
+   printf "${KGRN} found: ${KNRM} ${whichgcc}\n"
+
+cat <<'HELLO_WORLD_EOF' > /tmp/HelloWorld.cpp
+#include <iostream>
+using namespace std;
+
+int main ()
+{
+  cout << "Hello World!\n";
+  return 0;
+} 
+HELLO_WORLD_EOF
+
+   printf "${KBLU}Testing Compiler in PATH ${KNRM} CMD = g++ /tmp/HelloWorld.cpp -o /tmp/HelloWorld ... "
+
+   g++ /tmp/HelloWorld.cpp -o /tmp/HelloWorld
+   rc=$?
+   if [ ${rc} != '0' ]; then
+      printf "${KRED} failed ${KNRM}\n"
+      return ${rc}
+   fi
+   printf "${KGRN} passed ${KNRM}\n"
+
+   printf "${KBLU}Testing executable ${KNRM} CMD = /tmp/HelloWorld\n"
+   /tmp/HelloWorld
+   rc=$?
+
+
+}
+
+
 
 function downloadRaspbianKernel
 {
@@ -1440,9 +1681,6 @@ function createDosBootPVolume()
     if [  -d "${BootFS}" ]; then
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${BootFS}${KNRM}\n"
       
-       # Give a couple of seconds for the user to react
-       sleep 3
-
        return;
     fi
 
@@ -1475,9 +1713,6 @@ function createRootPVolume()
     if [  -d "${RootFS}" ]; then
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${RootFS}${KNRM}\n"
       
-       # Give a couple of seconds for the user to react
-       sleep 3
-
        return;
     fi
 
@@ -1713,16 +1948,19 @@ while getopts "$OPTSTRING" opt; do
 
              # -b alone is build the cross compiler
              
-             printf "${KBLU}Checking for working cross compiler first ${KNRM} ... "
+             printf "${KBLU}Checking for working cross compiler first ${KNRM} ${ToolchainName}-g++ ... "
              testBuild   # testBuild sets rc
              if [ ${rc} == '0' ]; then
                 printf "${KGRN} found ${KNRM}\n"
-                printf "To rebuild it again, remove the old one first or ${KNRM}\n"
+                printf "To rebuild it again, remove the old one first ${KBLU}or ${KNRM}\n"
                 if [ $ToolchainNameOpt == 'y' ]; then
-                   printf "${KBLU}Execute:${KNRM} ./build.sh -T ${ToolchainName} -b build ${KNRM}\n"
+                   printf "${KBLU}Execute:${KNRM} ./build.sh -T ${ToolchainName} -b Raspbian ${KNRM}\n"
                 else
-                   printf "${KBLU}Execute:${KNRM} ./build.sh -b build ${KNRM}\n"
+                   printf "${KBLU}Execute:${KNRM} ./build.sh -b Raspbian ${KNRM}\n"
                 fi
+                printf "${KNRM}to start building Raspbian\n"
+
+                exit 0
              else
                 buildToolchain "build"
              fi
@@ -1757,6 +1995,39 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       t)
+
+          # Check next positional parameter
+
+          # Why would checking for an unbound variable cause an unbound variable?
+          set +u
+          nextOpt=${!OPTIND}
+
+          # Exit immediately for unbound variables.
+          set -u
+
+          # existing or starting with dash?
+          if [[ -n $nextOpt && $nextOpt != -* ]]; then
+             OPTIND=$((OPTIND + 1))
+             if [ $nextOpt == "gcc" ]; then
+                testgcc 
+                if [ ${rc} == '0' ]; then
+                   printf "${KGRN} Wahoo ! it works!! ${KNRM}\n"
+                else
+                   printf "${KRED} Boooo ! it failed :-( ${KNRM}\n"
+                   exit ${rc}
+                fi
+                testCompilerForPIE 
+                if [ ${rc} == '0' ]; then
+                   printf "${KGRN} Wahoo ! it works!! ${KNRM}\n"
+                else
+                   printf "${KRED} Boooo ! it failed :-( ${KNRM}\n"
+                   exit ${rc}
+                fi
+                exit ${rc}
+               
+             fi
+          fi
+
           printf "${KBLU}Testing toolchain ${ToolchainName} ${KNRM}\n"
 
           testBuild   # testBuild sets rc
@@ -1828,9 +2099,16 @@ createTarBallSourcesDir
 # Create the case sensitive volume first.
 createCaseSensitiveVolume
 
+
 # OSX is either missing tools or they are too old.
 # Solve this with putting brew tools in our own build.
 buildBrewTools
+
+# Brew tools does not contain ld and the OSX version results in the error
+#  PIE disabled. Absolute addressing (perhaps -mdynamic-no-pic)
+# Trying to build them first before gcc, causes ld not
+# to be built.
+buildBinutils
 
 printf "${KBLU}Checking for an existing ct-ng ${KNRM} /Volumes/${VolumeBase}/ctng/bin/ct-ng ... "
 if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
