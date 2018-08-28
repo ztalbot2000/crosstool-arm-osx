@@ -100,7 +100,7 @@ VolumeBase="${Volume}Base"
 # Downloading the sources all the time is painful, especially when one site is down
 # There is no option for this because the ct-ng config file must also be
 # changed
-TarBallSourcesPath="/Volumes/${VolumeBase}/sources"
+SavedSourcesPath="/Volumes/${VolumeBase}/sources"
 
 # The compiler will be placed in /Volumes/<Volume>/x-tools
 # It can be overriden with -O <OutputDir>.  Do this instead as 'x-tools' is
@@ -120,7 +120,7 @@ OutputDir='x-tools'
 # that did not behave as good as brew.
 # 
 BrewHome="/Volumes/${VolumeBase}/brew"
-export HOMEBREW_CACHE=${TarBallSourcesPath}
+export HOMEBREW_CACHE=${SavedSourcesPath}
 # Never found anything there, but was recommnded when setting HOMEBREW_CACHE
 export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs 
 
@@ -156,6 +156,7 @@ RootFS="/Volumes/${RootDir}"
 # Options to be toggled from command line
 # see -help
 CleanRaspbianOpt='n'
+SavedSourcesPathOpt='n'
 TestHostCompilerOpt='n'
 TestCrossCompilerOpt='n'
 TestCompilerOnlyOpt='y'
@@ -223,6 +224,9 @@ cat <<'HELP_EOF'
                            -f <configFile>
                        The product of which would be: armv8-rpi3-linux-gnueabihf-gcc ...
      -P              - Just Print the PATH variableH
+     -S <path>       - A path where sources can be retrieved from. It does not
+                       get removed with any clean option. The  default is
+                       <Volume>Base/sources
      -h              - This menu.
      -help
      "none"          - Go for it all if no options given. it will always try to 
@@ -401,13 +405,17 @@ function createCaseSensitiveVolumeBase()
 
 function createTarBallSourcesDir()
 {
-    printf "${KBLU}Checking for saved tarballs directory ${KNRM}${TarBallSourcesPath} ${KNRM} ..."
-    if [ -d "${TarBallSourcesPath}" ]; then
+    printf "${KBLU}Checking for saved tarballs directory ${KNRM}${SavedSourcesPath} ${KNRM} ..."
+    if [ -d "${SavedSourcesPath}" ]; then
        printf "${KGRN} found ${KNRM}\n"
     else
+       if [ "${SavedSourcesPathOpt}" == 'y' ]; then
+          printf "${KRED} not found - ${KNRM} Cannot continue when saved sources path does not exist: ${SavedSourcesPathOpt}\n"
+          exit -1
+       fi
        printf "${KYEL} not found -OK ${KNRM}\n"
-       printf "${KNRM}Creating ${KNRM}${TarBallSourcesPath}${KNRM} ... "
-       mkdir "${TarBallSourcesPath}"
+       printf "${KNRM}Creating ${KNRM}${SavedSourcesPath}${KNRM} ... "
+       mkdir "${SavedSourcesPath}"
        printf "${KGRN} done ${KNRM}\n"
     fi
 
@@ -417,7 +425,7 @@ function createTarBallSourcesDir()
    #   printf "${KGRN} found ${KNRM}\n"
    # else
    #   printf "${KYEL} not found -OK ${KNRM}\n"
-   #   printf "${KNRM}Creating ${KNRM}${TarBallSourcesPath}${KNRM} ... "
+   #   printf "${KNRM}Creating ${KNRM}${SavedSourcesPath}${KNRM} ... "
    #   mkdir ${CT_TOP_DIR}/$ToolchainName
    #   printf "${KGRN} done ${KNRM}\n"
    # fi
@@ -721,19 +729,19 @@ function buildBinutilsForHost()
       printf "${KYEL} not found -OK ${KNRM}\n"
 
       printf "${KBLU}Checking for a saved ${binutilsFile} ${KNRM} ... "
-      if [ -f "${TarBallSourcesPath}/${binutilsFile}" ]; then
+      if [ -f "${SavedSourcesPath}/${binutilsFile}" ]; then
          printf "${KGRN} found ${KNRM}\n"
       else
          printf "${KYEL} not found -OK ${KNRM}\n"
          printf "${KBLU}Downloading ${binutilsFile} ${KNRM} ... "
-         curl -Lsf "${binutilsURL}" -o "${TarBallSourcesPath}/${binutilsFile}"
+         curl -Lsf "${binutilsURL}" -o "${SavedSourcesPath}/${binutilsFile}"
          printf "${KGRN} done ${KNRM}\n"
       fi
       printf "${KBLU}Extracting ${binutilsFile} ${KNRM} ... Logging to /tmp/binutils_extract.log\n"
       # I dont know why this is true, but configure fails otherwise
       set +e
 
-      tar -xzf ${TarBallSourcesPath}/${binutilsFile} -C${CT_TOP_DIR}/src > /tmp/binutils_extract.log 2>&1 &
+      tar -xzf ${SavedSourcesPath}/${binutilsFile} -C${CT_TOP_DIR}/src > /tmp/binutils_extract.log 2>&1 &
       pid="$!"
 
       waitForPid "$pid"
@@ -1024,8 +1032,6 @@ CONFIG_EOF
    # Give the user a chance to digest this
    sleep 5
 
-   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
-
    # Use 'menuconfig' target for the fine tuning.
 
    # It seems ct-ng menuconfig dies without some kind of target
@@ -1121,7 +1127,7 @@ function runCTNG()
    fi
 }
 
-function buildLibtool
+function buildLibtool()
 {   
     cd "${CT_TOP_DIR}/src/libelf"
     # ./configure --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}
@@ -1130,7 +1136,7 @@ function buildLibtool
     make install
 }
 
-function downloadAndBuildzlibForTarget
+function downloadAndBuildzlibForTarget()
 {
    zlibFile="zlib-1.2.11.tar.gz"
    zlibURL="https://zlib.net/zlib-1.2.11.tar.gz"
@@ -1150,16 +1156,16 @@ function downloadAndBuildzlibForTarget
       printf "${KYEL} not found -OK ${KNRM}\n"
       cd "${CT_TOP_DIR}/src/"
       printf "${KBLU}Checking for saved ${KNRM}${zlibFile} ... "
-      if [ -f "${TarBallSourcesPath}/${zlibFile}" ]; then
+      if [ -f "${SavedSourcesPath}/${zlibFile}" ]; then
          printf "${KGRN} found ${KNRM}\n"
       else
          printf "${KYEL} not found -OK ${KNRM}\n"
          printf "${KBLU}Downloading ${KNRM}${zlibFile} ... "
-         curl -Lsf "${zlibURL}" -o "${TarBallSourcesPath}/${zlibFile}"
+         curl -Lsf "${zlibURL}" -o "${SavedSourcesPath}/${zlibFile}"
          printf "${KGRN} done ${KNRM}\n"
       fi
       printf "${KBLU}Decompressing ${KNRM}${zlibFile} ... "
-      tar -xzf ${TarBallSourcesPath}/${zlibFile} -C${CT_TOP_DIR}/src
+      tar -xzf ${SavedSourcesPath}/${zlibFile} -C${CT_TOP_DIR}/src
       printf "${KGRN} done ${KNRM}\n"
    fi
 
@@ -1226,7 +1232,7 @@ function downloadAndBuildzlibForTarget
 }
 
 
-function downloadElfLibrary
+function downloadElfLibrary()
 {
 elfLibURL="https://github.com/WolfgangSt/libelf.git"
 
@@ -1245,7 +1251,7 @@ elfLibURL="https://github.com/WolfgangSt/libelf.git"
    fi
 }
 
-function testBuild
+function testBuild()
 {
    gpp="${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}-g++"
    if [ ! -f "${gpp}" ]; then
@@ -1271,9 +1277,8 @@ HELLO_WORLD_EOF
    rc=$?
 
 }
-function testHostCompilerForpthreads
+function testHostCompilerForpthreads()
 {
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$PATH 
 
 
 cat <<'TEST_PTHREADS_EOF' > /tmp/pthreadsWorld.c
@@ -1359,10 +1364,8 @@ TEST_PTHREADS_EOF
    rc=$?
 }
 
-function testHostCompilerForPIE
+function testHostCompilerForPIE()
 {
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$PATH 
-
 
 cat <<'TEST_PIE_EOF' > /tmp/PIEWorld.cpp
 #include <iostream>
@@ -1400,9 +1403,8 @@ TEST_PIE_EOF
 }
 
 
-function testHostgcc
+function testHostgcc()
 {
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$PATH 
 
    printf "${KBLU}Finding Compiler in PATH ${KNRM} CMD = which g++ ... "
    whichgcc=$(which g++)
@@ -1442,9 +1444,10 @@ HELLO_WORLD_EOF
 
 }
 
-function testHostCompiler
+function testHostCompiler()
 {
    printf "${KBLU}Running Host Compiler tests ${KNRM}\n"
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$PATH 
 
    testHostgcc 
    if [ ${rc} != '0' ]; then
@@ -1467,7 +1470,7 @@ function testHostCompiler
    printf "${KGRN} Wahoo ! it works!! ${KNRM}\n"
 
 }
-function testCrossCompiler
+function testCrossCompiler()
 {
    printf "${KBLU}Testing toolchain ${ToolchainName} ${KNRM}\n"
 
@@ -1501,7 +1504,7 @@ function downloadCrossTool()
    fi
 }
 
-function buildCrossCompiler
+function buildCrossCompiler()
 {
    createCrossCompilerConfigFile
    printf "${KBLU}Checking for working cross compiler first ${KNRM} ${ToolchainName}-g++ ... "
@@ -1525,7 +1528,7 @@ function buildCrossCompiler
    
 }
 
-function downloadRaspbianKernel
+function downloadRaspbianKernel()
 {
 RaspbianURL="https://github.com/raspberrypi/linux.git"
 
@@ -1568,15 +1571,15 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
    else
       printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KBLU}Checking for saved ${KNRM} Raspbian.tar.xz ... "
-      if [ -f "${TarBallSourcesPath}/Raspbian.tar.xz" ]; then
+      if [ -f "${SavedSourcesPath}/Raspbian.tar.xz" ]; then
          printf "${KGRN} found ${KNRM}\n"
 
          cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
-         printf "${KBLU}Extracting saved ${KNRM} ${TarBallSourcesPath}/Raspbian.tar.xz ... Logging to /tmp/Raspbian_extract.log\n"
+         printf "${KBLU}Extracting saved ${KNRM} ${SavedSourcesPath}/Raspbian.tar.xz ... Logging to /tmp/Raspbian_extract.log\n"
 
          # I dont know why this is true, but tar fails otherwise
          set +e
-         tar -xzf ${TarBallSourcesPath}/Raspbian.tar.xz  > /tmp/Raspbian_extract.log 2>&1 &
+         tar -xzf ${SavedSourcesPath}/Raspbian.tar.xz  > /tmp/Raspbian_extract.log 2>&1 &
 
          pid="$!"
          waitForPid ${pid}
@@ -1596,29 +1599,33 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          printf "${KBLU}Cloning Raspbian from git ${KNRM} ... \n"
          cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
 
+         # results in git branch -> (local) 4.14.y and all remotes, No mptcp
+         # git clone -recursive ${RaspbianURL}
+
          git clone --depth=1 ${RaspbianURL} 
 
          printf "${KGRN} done ${KNRM}\n"
 
          # Fix missing dtb's 
          # cd linux
-         # git remote add mptcp https://github.com/multipath-tcp/mptcp.git
-         # git fetch mptcp
+
          # git checkout -b rpi_mptcp origin/rpi-4.14.y
          # # SETTING UP GIT EMAIL (CAN BE A TRASH MAIL OR JUST EXAMPLE@MAIL.COM)
          # git config --global user.email "example@mail.com"
-         # git merge mptcp/mptcp_v0.94  <- Failed
+#git config merge.renameLimit 999999
+         # git merge mptcp/mptcp_v0.94  <- Failed. Merge conflicts
+#git config --unset merge.renameLimit
          # cd ..
 
          # Patch source for RT Linux
          # wget -O rt.patch.gz https://www.kernel.org/pub/linux/kernel/projects/rt/4.14/older/patch-4.14.18-rt15.patch.gz
          # zcat rt.patch.gz | patch -p1
 
-         printf "${KBLU}Saving Raspbian source ${KNRM} to ${TarBallSourcesPath}/Raspbian.tar.xz ...  Logging to raspbian_compress.log\n"
+         printf "${KBLU}Saving Raspbian source ${KNRM} to ${SavedSourcesPath}/Raspbian.tar.xz ...  Logging to raspbian_compress.log\n"
 
          # I dont know why this is true, but tar fails otherwise
          set +e
-         tar -cJf "${TarBallSourcesPath}/Raspbian.tar.xz" linux  &
+         tar -cJf "${SavedSourcesPath}/Raspbian.tar.xz" linux  &
          pid="$!"
          waitForPid "$pid"
 
@@ -1634,7 +1641,7 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
    fi
 
 }
-function downloadElfHeaderForOSX
+function downloadElfHeaderForOSX()
 {
    ElfHeaderFile="/usr/local/include/elf.h"
    printf "${KBLU}Checking for ${KNRM}${ElfHeaderFile}\n"
@@ -1654,7 +1661,7 @@ function downloadElfHeaderForOSX
    fi
 }
 
-function cleanupElfHeaderForOSX
+function cleanupElfHeaderForOSX()
 {
    ElfHeaderFile="/usr/local/include/elf.h"
    printf "${KBLU}Checking for ${KNRM} ${ElfHeaderFile} ... "
@@ -1676,10 +1683,10 @@ function cleanupElfHeaderForOSX
    fi
 }
 
-function configureRaspbianKernel
+function configureRaspbianKernel()
 {
    cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
-   printf "${KBLU}Configuring Raspbian Kernel in ${PWD}${KNRM}\n"
+   printf "${KBLU}Configuring Raspbian Kernel ${KNRM} in ${PWD}\n"
 
    export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
    echo $PATH
@@ -1690,14 +1697,14 @@ function configureRaspbianKernel
 
    export CROSS_PREFIX=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-
 
-   printf "${KBLU}Checkingo for an existing .config file ${KNRM} ... "
+   printf "${KBLU}Checkingo for an existing linux/.config file ${KNRM} ... "
    if [ -f .config ]; then
       printf "${KYEL} found ${KNRM} \n"
       printf "${KNRM} make mproper & bcm2709_defconfig  ${KNRM} will not be done \n"
       printf "${KNRM} to protect previous changes  ${KNRM} \n"
    else
       printf "${KYEL} not found -OK ${KNRM} \n"
-      printf "${KBLU}Make bcm2709_defconfig in ${PWD}${KNRM}\n"
+      printf "${KBLU}Make bcm2709_defconfig ${KNRM} in ${PWD}\n"
       export CFLAGS=-Wl,-no_pie
       export LDFLAGS=-Wl,-no_pie
       make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
@@ -1849,7 +1856,7 @@ function checkExt2InstallForOSX()
    
 }
 
-function buildRaspbian
+function buildRaspbian()
 {
    downloadAndBuildzlibForTarget
 
@@ -1859,7 +1866,7 @@ function buildRaspbian
    cleanupElfHeaderForOSX
 
 }
-function installRaspbian
+function installRaspbian()
 {
    updateBrewForEXT2
 
@@ -1982,7 +1989,7 @@ function createRootPVolume()
    hdiutil mount ${RootDir}.sparseimage
 }
 
-function createPartitions
+function createPartitions()
 {
   # bootp=${device}p1
   # rootp=${device}p2
@@ -2016,14 +2023,17 @@ function updateVariables()
    # Do not change the name of VolumeBase. It would
    # defeat its purpose of being solid and separate
 
-   # Change all variables that require this
-   TarBallSourcesPath="/Volumes/${VolumeBase}/sources"
+
+   # A specified saved sources path does not get updated
+   if [ "${SavedSourcesPathOpt}" == 'n' ]; then
+      SavedSourcesPath="/Volumes/${VolumeBase}/sources"
+   fi
    BrewHome="/Volumes/${VolumeBase}/brew"
    CT_TOP_DIR="/Volumes/${Volume}"
 
    export BREW_PREFIX=$BrewHome
    export PKG_CONFIG_PATH=$BREW_PREFIX
-   export HOMEBREW_CACHE=${TarBallSourcesPath}
+   export HOMEBREW_CACHE=${SavedSourcesPath}
    export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs
 }
 
@@ -2031,7 +2041,7 @@ function updateVariables()
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
-OPTSTRING='h?P?c:I:V:O:f:btT:i'
+OPTSTRING='h?P?c:I:V:O:f:btT:iS:'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -2089,6 +2099,7 @@ while getopts "$OPTSTRING" opt; do
           updateVariables
 
           ;;
+          #####################
       O)
           OutputDir=$OPTARG
 
@@ -2179,6 +2190,12 @@ while getopts "$OPTSTRING" opt; do
           testCompilerOnlyOpt='n'
 
           InstallRaspbianOpt='y'
+          ;;
+          #####################
+      S)
+          SavedSourcesPath=$OPTARG
+          SavedSourcesPathOpt='y'
+
           ;;
           #####################
       \?)
