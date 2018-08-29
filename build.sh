@@ -469,6 +469,7 @@ function createCaseSensitiveVolume()
 #
 # Binutils is for objcopy, objdump, ranlib, readelf
 # sed, gawk libtool bash, grep are direct requirements
+# pkg-config, pcre are dependancies of grep
 # xz is reauired when configuring crosstool-ng
 # help2man is reauired when configuring crosstool-ng
 # wget  is reauired when configuring crosstool-ng
@@ -485,7 +486,7 @@ function createCaseSensitiveVolume()
 #
 # for Raspbian tools - libelf ncurses gcc
 # for xconfig - QT   (takes hours). That would be up to you.
-BrewTools="coreutils findutils libtool grep ncurses gettext xz gnu-sed gawk binutils gmp isl mpc help2man autoconf automake bison bash wget sha2"
+BrewTools="coreutils findutils libtool pkg-config pcre grep ncurses gettext xz gnu-sed gawk binutils gmp isl mpc help2man autoconf automake bison bash wget sha2 libelf texinfo"
 
 function buildBrewTools()
 {
@@ -512,7 +513,7 @@ function buildBrewTools()
       printf "${KGRN} found ${KNRM}\n"
    fi
 
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    printf "${KBLU}Updating HomeBrew tools${KNRM} ...\n"
    printf "${KRED}Ignore the ERROR: could not link ${KNRM}\n"
@@ -1105,7 +1106,7 @@ function runCTNG()
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
-   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
 
    if [ "${RunCTNGOptArg}" == "list-steps" ]; then
       ct-ng "${RunCTNGOptArg}"
@@ -1447,7 +1448,7 @@ HELLO_WORLD_EOF
 function testHostCompiler()
 {
    printf "${KBLU}Running Host Compiler tests ${KNRM}\n"
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$PATH 
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$PATH 
 
    testHostgcc 
    if [ ${rc} != '0' ]; then
@@ -1533,8 +1534,8 @@ function downloadRaspbianKernel()
 RaspbianURL="https://github.com/raspberrypi/linux.git"
 
    printf "${KMAG}*******************************************************************************${KNRM}\n"
-   printf "${KMAG}* WHEN CONFIGURING THE RASPIAN KERNEL YOU MUST SET THE \n"
-   printf "${KMAG}*  COMPILER PREFIX TO: ${KRED} ${ToolchainName}-  ${KNRM}\n"
+   printf "${KMAG}* WHEN CONFIGURING THE RASPIAN KERNEL CHECK THAT THE \n"
+   printf "${KMAG}*  COMPILER PREFIX IS: ${KRED} ${ToolchainName}-  ${KNRM}\n"
    printf "${KMAG}*******************************************************************************${KNRM}\n"
 
    # This is so very important that we must make sure you remember to set the compiler prefix
@@ -1563,10 +1564,10 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
       cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
       printf "${KGRN} found ${KNRM}\n"
       printf "${KRED}WARNING ${KNRM}Path already exists ${RaspbianSrcDir} ${KNRM}\n"
-      printf "        A fetch will be done instead to keep tree up to date\n"
-      printf "\n"
+      # printf "        A fetch will be done instead to keep tree up to date\n"
+      # printf "\n"
       cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
-      git fetch
+      # git fetch
     
    else
       printf "${KYEL} not found -OK ${KNRM}\n"
@@ -1599,9 +1600,15 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          printf "${KBLU}Cloning Raspbian from git ${KNRM} ... \n"
          cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
 
-         # results in git branch -> (local) 4.14.y and all remotes, No mptcp
+         # results in git branch ->
+         #            4.14.y
+         #            and all remotes, No mptcp
          # git clone -recursive ${RaspbianURL}
 
+         # results in git branch -> 
+         #            rpi-4.14.y
+         #            remotes/origin/HEAD -> origin/rpi-4.14.y
+         #            remotes/origin/rpi-4.14.y
          git clone --depth=1 ${RaspbianURL} 
 
          printf "${KGRN} done ${KNRM}\n"
@@ -1688,7 +1695,7 @@ function configureRaspbianKernel()
    cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel ${KNRM} in ${PWD}\n"
 
-   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
    echo $PATH
 
 
@@ -1708,6 +1715,10 @@ function configureRaspbianKernel()
       export CFLAGS=-Wl,-no_pie
       export LDFLAGS=-Wl,-no_pie
       make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
+
+      # Since there is no config file then add the cross compiler
+      echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"" > .config
+
       make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
    fi
 
@@ -1727,21 +1738,21 @@ function configureRaspbianKernel()
         zImage 
 
    printf "${KBLU}Make modules in ${PWD}${KNRM}\n"
-   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
+   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
-        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
+        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/$ToolchainName/sysroot/usr/include \
         modules
 
    printf "${KBLU}Make dtbs in ${PWD}${KNRM}\n"
-   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
+   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
-        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
+        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/$ToolchainName/sysroot/usr/include \
         dtbs
 
    # Only thing changed were
@@ -1879,7 +1890,7 @@ function installRaspbian()
 
 function updateBrewForEXT2()
 {
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:$PATH 
+   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:$PATH 
 
    if [ ! -d $BrewHome/Caskroom/osxfuse ] &&
       [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
@@ -1902,7 +1913,7 @@ function updateBrewForEXT2()
       # Exit immediately if a command exits with a non-zero status
       set -e
 
-      if [ -f  /Library/Filesystems/fuse-ext2.fs ] && [ -f /Library/PreferencePanes/fuse-ext2.prefPane ]; then
+      if [ -f  /Library/Filesystems/fuse-ext2.fs/fuse-ext2.util ] && [ -f /Library/PreferencePanes/fuse-ext2.prefPane/Contents/MacOS/fuse-ext2 ]; then
          # They could be there from a previous installation
          # NOOP
          echo "${KNRM}"
@@ -2052,7 +2063,7 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       P)
-          export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH
+          export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH
   
           printf "${KNRM}PATH=${PATH}${KNRM}\n"
           printf "./configure  ARCH=arm  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}\n"
