@@ -2072,6 +2072,9 @@ function createPartitions()
 
 function updateVariables()
 {
+   # Base gets changed based on Volume name given
+   VolumeBase="${Volume}Base"
+
    # MSDOS FAT16 volume names are limited to 8 characters
    BootDir="RBoot"
    BootFS="/Volumes/${BootDir}"
