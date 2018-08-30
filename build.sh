@@ -61,15 +61,6 @@ downloadCrosstoolLatestOpt=y
 # Config. Update below here to suite your specific needs, but all options can be
 # specified from command line arguments. See ./build.sh -help.
 
-# The crosstool image will be $ImageName.sparseimage
-# The volume will grow as required because of the SPARSE type
-# You can change this with -i <ImageName> but it will always
-# be <ImageName>.sparseimage
-ImageName="CrossToolNG"
-
-# I got tired of rebuilding brew and ct-ng. They now go here
-ImageNameBase="${ImageName}Base"
-
 #
 # This is where your §{CrossToolNGConfigFile}.config file is if you have one.
 # It would be copied to $CT_TOP_DIR/.config prior to ct-ng menuconfig
@@ -152,10 +143,16 @@ BootFS="/Volumes/${BootDir}"
 RootDir="RRoot"
 RootFS="/Volumes/${RootDir}"
 
+# A string to hold options given, to be repeated
+# This will save checking for them each time
+CmdOptionString=""
+
 
 # Options to be toggled from command line
 # see -help
 CleanRaspbianOpt='n'
+VolumeOpt='n'
+OutputDirOpt='n'
 SavedSourcesPathOpt='n'
 TestHostCompilerOpt='n'
 TestCrossCompilerOpt='n'
@@ -189,7 +186,6 @@ cat <<'HELP_EOF'
    This shell script is a front end to crosstool-ng to help build a cross compiler on your Mac.  It downloads all the necessary files to build the cross compiler.  It only assumes you have Xcode command line tools installed.
 
    Options:
-     -I <ImageName>  - Instead of CrosstoolNG.sparseImage use <ImageName>.sparseImageI
      -V <Volume>     - Instead of /Volumes/CrosstoolNG/ and
                                   /Volumes/CrosstoolNGBase/
                                use
@@ -352,23 +348,23 @@ function realClean()
    # Eject the disk instead of unmounting it or you will have
    # a lot of disks hanging around.  I had 47, Doh!
    if [ -d  "/Volumes/${VolumeBase}" ]; then 
-      printf "${KBLU}Ejecting  /Volumes/${VolumeBase}${KNRM}\n"
+      printf "${KBLU}Ejecting  /Volumes/${VolumeBase} ${KNRM}\n"
       hdiutil eject /Volumes/${VolumeBase}
    fi
 
    # Eject the disk instead of unmounting it or you will have
    # a lot of disks hanging around.  I had 47, Doh!
    if [ -d  "/Volumes/${Volume}" ]; then 
-      printf "${KBLU}Ejecting  /Volumes/${Volume}${KNRM}\n"
+      printf "${KBLU}Ejecting  /Volumes/${Volume} ${KNRM}\n"
       hdiutil eject /Volumes/${Volume}
    fi
 
 
    # Since everything is on the image, just remove it does it all
-   printf "${KBLU}Removing ${ImageName}.sparseimage${KNRM}\n"
-   removeFileWithCheck "${ImageName}.sparseimage"
-   printf "${KBLU}Removing ${ImageNameBase}.sparseimage${KNRM}\n"
-   removeFileWithCheck "${ImageNameBase}.sparseimage"
+   printf "${KBLU}Removing ${Volume}.sparseimage${KNRM}\n"
+   removeFileWithCheck "${Volume}.sparseimage"
+   printf "${KBLU}Removing ${VolumeBase}.sparseimage${KNRM}\n"
+   removeFileWithCheck "${VolumeBase}.sparseimage"
 }
 
 # For smaller more permanent stuff
@@ -382,16 +378,16 @@ function createCaseSensitiveVolumeBase()
        return;
     fi
 
-   if [ -f "${ImageNameBase}.sparseimage" ]; then
+   if [ -f "${VolumeBase}.sparseimage" ]; then
       printf "${KRED}WARNING:${KNRM}\n"
-      printf "         File already exists: ${ImageNameBase}.sparseimage ${KNRM}\n"
+      printf "         File already exists: ${VolumeBase}.sparseimage ${KNRM}\n"
       printf "         This file will be mounted as ${VolumeBase} ${KNRM}\n"
       
       # Give a couple of seconds for the user to react
       sleep 3
 
    else
-      hdiutil create ${ImageNameBase}        \
+      hdiutil create ${VolumeBase}           \
                       -volname ${VolumeBase} \
                       -type SPARSE           \
                       -size 4g               \
@@ -400,7 +396,7 @@ function createCaseSensitiveVolumeBase()
                       -puppetstrings
    fi
 
-   hdiutil mount "${ImageNameBase}.sparseimage"
+   hdiutil mount "${VolumeBase}.sparseimage"
 }
 
 function createTarBallSourcesDir()
@@ -442,16 +438,16 @@ function createCaseSensitiveVolume()
        return;
     fi
 
-   if [ -f "${ImageName}.sparseimage" ]; then
+   if [ -f "${Volume}.sparseimage" ]; then
       printf "${KRED}WARNING:${KNRM}\n"
-      printf "         File already exists: ${ImageName}.sparseimage ${KNRM}\n"
+      printf "         File already exists: ${Volume}.sparseimage ${KNRM}\n"
       printf "         This file will be mounted as ${Volume} ${KNRM}\n"
       
       # Give a couple of seconds for the user to react
       sleep 3
 
    else
-      hdiutil create ${ImageName}           \
+      hdiutil create ${Volume}              \
                       -volname ${Volume}    \
                       -type SPARSE          \
                       -size 32              \
@@ -460,7 +456,7 @@ function createCaseSensitiveVolume()
                       -puppetstrings
    fi
 
-   hdiutil mount "${ImageName}.sparseimage"
+   hdiutil mount "${Volume}.sparseimage"
 }
 
 #
@@ -844,17 +840,66 @@ function downloadCrossTool_LATEST()
 
 function patchConfigFileForVolume()
 {
-    printf "${KBLU}Patching .config file for 'CrossToolNG' in ${PWD}${KNRM}\n"
-    if [ -f ".config" ]; then
-       sed -i .bak -e's/CrossToolNG/'$Volume'/g' .config
+    printf "${KBLU}Patching .config file for -V option ${KNRM} in ${PWD} ... "
+
+    if [ "${VolumeOpt}" == 'y' ]; then
+       printf "${KGRN} required ${KNRM}\n"
+       printf "${KBLU}Changing /Volumes/CrossToolNG ${KNRM} to /Volumes/${Volume} ... "
+
+       if [ -f ".config" ]; then
+          sed -i.bak -e's/CrossToolNG/'$Volume'/g' .config
+          printf "${KGRN} done ${KNRM}\n"
+       else
+           printf "${KRED} not found ${KNRM}\n"
+           printf "${KRED} aborting ${KNRM}\n"
+           exit -1
+       fi
+    else 
+       printf "${KYEL} not specified. not required ${KNRM}\n"
+       printf "${KNRM}.config file not being patched as -V was not specified\n"
     fi
 }
 
 function patchConfigFileForOutputDir()
 {
-    printf "${KBLU}Patching .config file for 'x-tools' in ${PWD}${KNRM}\n"
-    if [ -f ".config" ]; then
-       sed -i .bak2 -e's/x-tools/'$OutputDir'/g' .config
+    printf "${KBLU}Patching .config file for -O option ${KNRM} in ${PWD} ... "
+     
+    if [ "${OutputDirOpt}" == 'y' ]; then
+       printf "${KGRN} required ${KNRM}\n"
+       printf "${KBLU}Changing x-tools ${KNRM} to ${OutputDir} ... "
+       if [ -f ".config" ]; then
+           sed -i.bak2 -e's/x-tools/'$OutputDir'/g' .config
+           printf "${KGRN} done ${KNRM}\n"
+       else
+           printf "${KRED} not found ${KNRM}\n"
+           printf "${KRED} aborting ${KNRM}\n"
+           exit -1
+       fi
+    else
+       printf "${KGRN} not required ${KNRM}\n"
+       printf "${KNRM}.config file not being patched as -O was not specified\n"
+    fi
+
+}
+
+function patchConfigFileForSavedSourcesPath()
+{
+    printf "${KBLU}Patching .config file for -S ootion ${KNRM} in ${PWD} ... "
+    if [ "${SavedSourcesPathOpt}" == 'y' ]; then
+       printf "${KGRN} required ${KNRM}\n"
+       printf "${KBLU}Changing ${CT_TOP_DIR}/sources ${KNRM} to ${SavedSourcesPath} ... "
+       if [ -f ".config" ]; then
+          # Since a path may have a slash, use a  pound sign as a delimeter
+          sed -i.bak3 -e's#CT_LOCAL_TARBALLS_DIR="/Volumes/'$VolumeBase'/sources"#CT_LOCAL_TARBALLS_DIR="'$SavedSourcesPath'"#g' .config
+           printf "${KGRN} done ${KNRM}\n"
+       else
+           printf "${KRED} not found ${KNRM}\n"
+           printf "${KRED} aborting ${KNRM}\n"
+           exit -1
+       fi
+    else
+       printf "${KYEL} not specified. not required ${KNRM}\n"
+       printf "${KNRM}.config file not being patched as -S was not specified\n"
     fi
 }
 
@@ -994,17 +1039,13 @@ function createCrossCompilerConfigFile()
       cp "${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}"  "${CT_TOP_DIR}/.config"
 
       cd "${CT_TOP_DIR}"
-      if [ "$Volume" == 'CrossToolNG' ];then
+      
+      patchConfigFileForVolume
+      
+      patchConfigFileForOutputDir
 
-         printf "${KBLU}.config file not being patched as -V was not specified ${KNRM}\n"
-      else
-         patchConfigFileForVolume
-      fi
-      if [ "$OutputDir" == 'x-tools' ];then
-         printf "${KBLU}.config file not being patched as -O was not specified ${KNRM}\n"
-      else
-         patchConfigFileForOutputDir
-      fi
+      patchConfigFileForSavedSourcesPath
+
    else
       printf "   - None found${KNRM}\n"
    fi
@@ -1121,11 +1162,7 @@ function runCTNG()
    ct-ng "${RunCTNGOptArg}" 
 
    printf "${KNRM}And if all went well, you are done! Go forth and cross compile ${KNRM}\n"
-   if [ "${ToolchainNameOpt}" == "n" ]; then
-      printf "Raspbian if you so wish with: ./build.sh -b Raspbian ${KNRM}\n"
-   else
-      printf "Raspbian if you so wish with: ./build.sh -T \"${ToolchainName}\" -b Raspbian ${KNRM}\n"
-   fi
+   printf "Raspbian if you so wish with: ./build.sh ${CmdOptionString} -b Raspbian ${KNRM}\n"
 }
 
 function buildLibtool()
@@ -1516,11 +1553,7 @@ function buildCrossCompiler()
          return
       fi
       printf "To rebuild it again, remove the old one first ${KBLU}or ${KNRM}\n"
-      if [ $ToolchainNameOpt == 'y' ]; then
-         printf "${KBLU}Execute:${KNRM} ./build.sh -T ${ToolchainName} -b Raspbian ${KNRM}\n"
-      else
-         printf "${KBLU}Execute:${KNRM} ./build.sh -b Raspbian ${KNRM}\n"
-      fi
+      printf "${KBLU}Execute:${KNRM} ./build.sh ${CmdOptionString} -b Raspbian ${KNRM}\n"
       printf "${KNRM}to start building Raspbian\n"
 
    else
@@ -1659,8 +1692,7 @@ function downloadElfHeaderForOSX()
       printf "${KRED}The gcc with OSX does not have an elf.h \n"
       printf "${KRED}No CFLAGS will fix this as the compile strips them\n"
       printf "${KRED}A copy from GitHub will be placed in /usr/local/include\n"
-      printf "${KRED}Another copy will be put in The Raspbian source linux subdirectory,\n"
-      printf "${KRED}as a reminder for this tool to remove it later.${KNRM}\n\n\n"
+      printf "${KRED}It will be removed after use.${KNRM}\n\n\n"
       sleep 6
       
       ElfHeaderFileURL="https://gist.githubusercontent.com/mlafeldt/3885346/raw/2ee259afd8407d635a9149fcc371fccf08b0c05b/elf.h"
@@ -1711,26 +1743,44 @@ function configureRaspbianKernel()
       printf "${KNRM} to protect previous changes  ${KNRM} \n"
    else
       printf "${KYEL} not found -OK ${KNRM} \n"
-      printf "${KBLU}Make bcm2709_defconfig ${KNRM} in ${PWD}\n"
-      export CFLAGS=-Wl,-no_pie
+      printf "${KBLU}Make bcm2835_defconfig ${KNRM} in ${PWD}\n"
+      export CFLAGS="-Wl,-no_pie"
       export LDFLAGS=-Wl,-no_pie
       make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
 
-      # Since there is no config file then add the cross compiler
-      echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"" > .config
 
-      make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+      make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2835_defconfig
+
+      # Since there is no config file then add the cross compiler
+      echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"\n" >> .config
+cat << 'RASPBIAN_CONFIG_EOF' >> z.config
+CONFIG_ARCH_BCM=y
+CONFIG_ARCH_BCM2835=y
+CONFIG_CMDLINE="console=ttyAMA0,115200 kgdboc=ttyAMA0,115200 root=/dev/mmcblk0p2 rootfstype=ext4 rootwait"
+CONFIG_OF_FLATTREE=y
+CONFIG_OF_EARLY_FLATTREE=y
+CONFIG_OF_DYNAMIC=y
+CONFIG_OF_ADDRESS=y
+CONFIG_OF_IRQ=y
+CONFIG_OF_NET=y
+CONFIG_OF_MDIO=y
+CONFIG_OF_RESERVED_MEM=y
+CONFIG_OF_RESOLVE=y
+CONFIG_OF_OVERLAY=y
+CONFIG_OF_CONFIGFS=y
+RASPBIAN_CONFIG_EOF
+
    fi
 
-   printf "${KBLU}Running make nconfig ${KNRM} \n"
+   # printf "${KBLU}Running make nconfig ${KNRM} \n"
    # This cannot include ARCH= ... as it runs on OSX
-   make nconfig
+   # make nconfig
 
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
 
-   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/lib \
+   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
@@ -1794,6 +1844,16 @@ function installRaspbianKernel()
    fi
    printf "${KGRN} found ${KNRM}\n"
 
+   printf "${KBLU}Checking for ${BootFS}/overlays ${KNRM} ... "
+   if [ ! -d "${BootFS}/overlays" ]; then
+      printf "${KYEL} not found -OK${KNRM}\n"
+      printf "${KBLU}Creating ${BootFS}/overlays ${KNRM} ... "
+      mkdir ${BootFS}/overlays
+      printf "${KGRN} done ${KNRM}\n"
+   else
+      printf "${KGRN} found ${KNRM}\n"
+   fi
+
    printf "${KBLU}Checking for ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${KNRM} ..."
    if [ ! -f "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage" ]; then
       printf "${KRED} not found ${KNRM}\n"
@@ -1831,12 +1891,7 @@ function checkExt2InstallForOSX()
       [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
       printf "${KRED} not found ${KNRM}\n"
       printf "${KNRM}You must first ${KNRM}\n"
-      if [ $ToolchainNameOpt == 'y' ]; then
-         printf "${KBLU}Execute:${KNRM} ./build.sh -T ${ToolchainName} -i ${KNRM}\n"
-      else
-         printf "${KBLU}Execute:${KNRM} ./build.sh -i ${KNRM}\n"
-      fi
-
+      printf "${KBLU}Execute:${KNRM} ./build.sh ${CmdOptionString} -i ${KNRM}\n"
       printf "${KNRM}To install the brew Ext2 tools ... ${KNRM}\n"
       exit -1
    fi
@@ -1921,12 +1976,7 @@ function updateBrewForEXT2()
       else
 
          printf "${KBLU}After the install and reboot ${KNRM} \n"
-         if [ $ToolchainNameOpt == 'y' ]; then
-            printf "${KBLU}Execute again:${KNRM} ./build.sh -T ${ToolchainName} -i ${KNRM}\n"
-         else
-            printf "${KBLU}Execute again:${KNRM} ./build.sh -i ${KNRM}\n"
-         fi
-
+         printf "${KBLU}Execute again:${KNRM} ./build.sh ${CmdOptionString} -i ${KNRM}\n"
          exit 0
       fi
    fi
@@ -2052,7 +2102,7 @@ function updateVariables()
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
-OPTSTRING='h?P?c:I:V:O:f:btT:iS:'
+OPTSTRING='h?P?c:V:O:f:btT:iS:'
 
 # Getopt #1 - To enforce order
 while getopts "$OPTSTRING" opt; do
@@ -2065,9 +2115,11 @@ while getopts "$OPTSTRING" opt; do
       P)
           export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH
   
-          printf "${KNRM}PATH=${PATH}${KNRM}\n"
-          printf "./configure  ARCH=arm  CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}\n"
-    printf "make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/bin/${ToolchainName}-\n"
+          printf "${KNRM}PATH=${PATH} \n"
+          printf "${KNRM}KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \n"
+          printf "${KNRM}KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \n"
+          printf "./configure  ARCH=arm  CROSS_COMPILE=${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \n"
+          printf "make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${ToolchainName}-\n"
           exit 0
           ;;
           #####################
@@ -2097,15 +2149,12 @@ while getopts "$OPTSTRING" opt; do
 
           ;;
           #####################
-      I)
-          ImageName=$OPTARG
-
-          updateVariables
-
-          ;;
-          #####################
       V)
           Volume=$OPTARG
+
+          VolumeOpt='y'
+
+          CmdOptionString="${CmdOptionString} -V ${Volume}"
 
           updateVariables
 
@@ -2114,12 +2163,18 @@ while getopts "$OPTSTRING" opt; do
       O)
           OutputDir=$OPTARG
 
+          OutputDirOpt='y'
+
+          CmdOptionString="${CmdOptionString} -O ${OutputDir}"
+
           updateVariables
 
           ;;
           #####################
       f)
           CrossToolNGConfigFile=$OPTARG
+
+          CmdOptionString="${CmdOptionString} -f ${CrossToolNGConfigFile}"
 
           # Do a quick check before we begin
           if [ -f "${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}" ]; then
@@ -2166,6 +2221,8 @@ while getopts "$OPTSTRING" opt; do
        T)
           ToolchainNameOpt=y
           ToolchainName=$OPTARG
+
+          CmdOptionString="${CmdOptionString} -T ${ToolchainName}"
 
           updateVariables
 
