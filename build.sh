@@ -67,7 +67,9 @@ downloadCrosstoolLatestOpt=y
 # It can be overriden with -f <ConfigFile>. Please do this instead of
 # changing it here.
 CrossToolNGConfigFile="armv8-rpi3-linux-gnueabihf.config"
-CrossToolNGConfigFilePath="${PWD}"
+
+# The starting directory where config files and sparse images will be created
+ThisToolsStartingPath="${PWD}"
 
 # This will be the name of the toolchain created by crosstools-ng
 # It is placed in $CT_TOP_DIR
@@ -1033,10 +1035,10 @@ function createCrossCompilerConfigFile()
    fi
    
 
-   printf "${KBLU}Checking for an existing toolchain config file: ${KNRM} ${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile} ...\n"
-   if [ -f "${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}" ]; then
-      printf "   - Using ${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile} ${KNRM}\n"
-      cp "${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}"  "${CT_TOP_DIR}/.config"
+   printf "${KBLU}Checking for an existing toolchain config file: ${KNRM} ${ThisToolsStartingPath}/${CrossToolNGConfigFile} ...\n"
+   if [ -f "${ThisToolsStartingPath}/${CrossToolNGConfigFile}" ]; then
+      printf "   - Using ${ThisToolsStartingPath}/${CrossToolNGConfigFile} ${KNRM}\n"
+      cp "${ThisToolsStartingPath}/${CrossToolNGConfigFile}"  "${CT_TOP_DIR}/.config"
 
       cd "${CT_TOP_DIR}"
       
@@ -1970,7 +1972,7 @@ function updateBrewForEXT2()
 
       if [ ! -d $BrewHome/Caskroom/osxfuse ]; then
          printf "${KBLU}Installing brew cask osxfuse ${KNRM}\n"
-         printf "${KMAG}osxfuse will need sudo ${KNRM}\n"
+         printf "${KMAG}*** osxfuse will need sudo *** ${KNRM}\n"
          $BrewHome/bin/brew cask install osxfuse && true
       fi
 
@@ -2010,7 +2012,10 @@ function createDosBootPVolume()
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${BootFS}${KNRM}\n"
       
        return;
-    fi
+   fi  
+
+   # Make sure we are back where we started
+   cd ${ThisToolsStartingPath}
 
    if [ -f "${BootDir}.sparseimage" ]; then
       printf "${KRED}WARNING:${KNRM}\n"
@@ -2042,7 +2047,10 @@ function createRootPVolume()
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${RootFS}${KNRM}\n"
       
        return;
-    fi
+   fi
+
+   # Make sure we are back where we started
+   cd ${ThisToolsStartingPath}
 
    if [ -f "${RootDir}.sparseimage" ]; then
       printf "${KRED}WARNING:${KNRM}\n"
@@ -2195,10 +2203,10 @@ while getopts "$OPTSTRING" opt; do
           CmdOptionString="${CmdOptionString} -f ${CrossToolNGConfigFile}"
 
           # Do a quick check before we begin
-          if [ -f "${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile}" ]; then
-             printf "${KNRM}${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile} ... ${KGRN} found ${KNRM}\n"
+          if [ -f "${ThisToolsStartingPath}/${CrossToolNGConfigFile}" ]; then
+             printf "${KNRM}${ThisToolsStartingPath}/${CrossToolNGConfigFile} ... ${KGRN} found ${KNRM}\n"
           else
-             printf "${KNRM}${CrossToolNGConfigFilePath}/${CrossToolNGConfigFile} ... ${KRED} not found ${KNRM}\n"
+             printf "${KNRM}${ThisToolsStartingPath}/${CrossToolNGConfigFile} ... ${KRED} not found ${KNRM}\n"
              exit 1
           fi
           ;;
