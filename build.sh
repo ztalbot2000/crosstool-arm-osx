@@ -1630,7 +1630,9 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          
       else
          printf "${KYEL} not found -OK${KNRM}\n"
-         printf "${KBLU}Cloning Raspbian from git ${KNRM} ... \n"
+         printf "${KBLU}Cloning Raspbian from git ${KNRM} \n"
+         printf "${KBLU}This will take a while, but a copy will ${KNRM} \n"
+         printf "${KBLU}be saved for the future. ${KNRM} \n"
          cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
 
          # results in git branch ->
@@ -1649,6 +1651,7 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          printf "${KGRN} done ${KNRM}\n"
 
          printf "${KBLU}Checking out remotes/origin/rpi-4.18.y  ${KNRM} \n"
+         cd linux
          git checkout -b remotes/origin/rpi-4.18.y
 
          printf "${KGRN} checkout complete ${KNRM}\n"
@@ -1670,6 +1673,8 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
 
          printf "${KBLU}Saving Raspbian source ${KNRM} to ${SavedSourcesPath}/Raspbian.tar.xz ...  Logging to raspbian_compress.log\n"
 
+         # Change directory before tar
+         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
          # I dont know why this is true, but tar fails otherwise
          set +e
          tar -cJf "${SavedSourcesPath}/Raspbian.tar.xz" linux  &
