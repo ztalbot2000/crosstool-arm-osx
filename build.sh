@@ -1706,7 +1706,7 @@ function downloadElfHeaderForOSX()
       curl -Lsf ${ElfHeaderFileURL} >  ${ElfHeaderFile}
 
       # Apples compiler complained about DECLS, so remove them
-      sed -i, -e's/__BEGIN_DECLS//g' -e's/__END_DECLS//g' ${ElfHeaderFile
+      sed -i, -e's/__BEGIN_DECLS//g' -e's/__END_DECLS//g' ${ElfHeaderFile}
    fi
 }
 
