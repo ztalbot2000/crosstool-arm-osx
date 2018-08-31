@@ -1642,9 +1642,16 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
          #            rpi-4.14.y
          #            remotes/origin/HEAD -> origin/rpi-4.14.y
          #            remotes/origin/rpi-4.14.y
-         git clone --depth=1 ${RaspbianURL} 
+         # git clone --depth=1 ${RaspbianURL} 
+
+         git clone ${RaspbianURL} 
 
          printf "${KGRN} done ${KNRM}\n"
+
+         printf "${KBLU}Checking out remotes/origin/rpi-4.18.y  ${KNRM} \n"
+         git checkout -b remotes/origin/rpi-4.18.y
+
+         printf "${KGRN} checkout complete ${KNRM}\n"
 
          # Fix missing dtb's 
          # cd linux
@@ -1697,6 +1704,9 @@ function downloadElfHeaderForOSX()
       
       ElfHeaderFileURL="https://gist.githubusercontent.com/mlafeldt/3885346/raw/2ee259afd8407d635a9149fcc371fccf08b0c05b/elf.h"
       curl -Lsf ${ElfHeaderFileURL} >  ${ElfHeaderFile}
+
+      # Apples compiler complained about DECLS, so remove them
+      sed -i, -e's/__BEGIN_DECLS//g' -e's/__END_DECLS//g' ${ElfHeaderFile
    fi
 }
 
