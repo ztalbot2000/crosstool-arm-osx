@@ -33,7 +33,7 @@
 #
 #  (4) Blast an image to an SD card that includes Raspbian, LinuxCnC and other tools.
 #
-#     Start by executingi "bash .build.shi" and follow along.  This tool does
+#     Start by executingi "bash .build.sh" and follow along.  This tool does
 #     try to continue where it left off each time.
 #
 #
@@ -1082,7 +1082,7 @@ CONFIG_EOF
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
-   printf "${KBLU}Execute:${KNRM} ./build.sh -b ${KNRM}"
+   printf "${KBLU}Execute:${KNRM} ./build.sh ${CmdOptionString} -b ${KNRM}"
    if [ $Volume != 'CrossToolNG' ]; then
       printf "${KNRM} -V ${Volume}${KNRM}"
    fi
@@ -1842,7 +1842,7 @@ function installRaspbianKernel()
    printf "${KBLU}Checking for Raspbian source ${KNRM} ..."
    if [ ! -d "${CT_TOP_DIR}/${RaspbianSrcDir}/linux" ]; then
       printf "${KRED} not found ${KNRM}\n"
-      printf "${KNRM} You must first successfully execute: ./biuld.sh -b Raspbian ${KNRM}\n"
+      printf "${KNRM} You must first successfully execute: ./biuld.sh ${CmdOptionString} -b Raspbian ${KNRM}\n"
       exit -1
    fi
    printf "${KGRN} found ${KNRM}\n"
