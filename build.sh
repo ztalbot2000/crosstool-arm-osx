@@ -1658,17 +1658,6 @@ RaspbianURL="https://github.com/raspberrypi/linux.git"
 
          printf "${KGRN} checkout complete ${KNRM}\n"
 
-         # Fix missing dtb's 
-         # cd linux
-
-         # git checkout -b rpi_mptcp origin/rpi-4.14.y
-         # # SETTING UP GIT EMAIL (CAN BE A TRASH MAIL OR JUST EXAMPLE@MAIL.COM)
-         # git config --global user.email "example@mail.com"
-#git config merge.renameLimit 999999
-         # git merge mptcp/mptcp_v0.94  <- Failed. Merge conflicts
-#git config --unset merge.renameLimit
-         # cd ..
-
          # Patch source for RT Linux
          # wget -O rt.patch.gz https://www.kernel.org/pub/linux/kernel/projects/rt/4.14/older/patch-4.14.18-rt15.patch.gz
          # zcat rt.patch.gz | patch -p1
@@ -1878,13 +1867,6 @@ function installRaspbianKernel()
    fi
    printf "${KGRN} found ${KNRM}\n"
 
-   # get Pi firmware
-   # git://github.com/raspberrypi/firmware.git
-   # cp firmware/boot/bootcode.bin
-   #                  fixup.dat
-   #                  start.elf  $RBootfs/
-
-   # cp firmwarehardfp/opt   pi/opt/   
 
    # FIXME add sudo later
    printf "${KBLU}Copying Raspbian file ${KNRM} *.dtb to ${BootFS} ... "
@@ -1899,6 +1881,48 @@ function installRaspbianKernel()
    printf "${KBLU}Copying Raspbian file ${KNRM} zImage to ${BootFS} ... "
    cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${BootFS}/kernel7.img
    printf "${KGRN} done ${KNRM}\n"
+}
+
+function installRaspbianFirmware()
+{
+   # This would take way to long and 6G for about nothing
+   # git clone git://github.com/raspberrypi/firmware.git
+
+   FirmwarePath="${CT_TOP_DIR}/src/rpi-firmware"
+   FirmwareFile="rpi-firmware.tar.xz"
+   SavedFirmwareFile="${SavedSourcesPath}/${FirmwareFile}"
+   FirmwareFiles="COPYING.linux LICENSE.broadcom bootcode.bin fixup.dat fixup_cd.dat fixup_db.dat fixup_x.dat start.elf start_cd.elf start_db.elf start_x.elf"
+   printf "${KBLU}Getting RPI Firmware ${KNRM}\n"
+   printf "${KBLU}Checking for Raspbian firmware ${KNRM} in ${FirmwarePath} ..."
+   if [ -d "${FirmwarePath}" ];then
+      printf "${KGRN} found ${KNRM}\n"
+   else
+      printf "${KYEL} not found -OK ${KNRM}\n"
+      printf "${KBLU}Checking for saved firmware ${KNRM} ${SavedFirmwareFile} ... "
+      if [ -f  "${SavedFirmwareFile}" ];then
+         printf "${KGRN} found ${KNRM}\n"
+         printf "${KBLU}Extracting saved firmware ${KNRM} ${FirmwareFile} ... "
+         tar -xf "${SavedFirmwareFile}" -C "${CT_TOP_DIR}/src"
+         printf "${KGRN} done ${KNRM}\n"
+      else
+         printf "${KYEL} not found -OK ${KNRM}\n"
+         printf "${KBLU}Downloading firmware ${KNRM} ... "
+         cd "${CT_TOP_DIR}/src"
+         # Grab the rpi-update repo
+         git clone --depth=1  "https://github.com/Hexxeh/rpi-firmware"
+         printf "${KGRN} done ${KNRM}\n"
+         printf "${KBLU}Saving firmware ${KNRM} ... "
+         tar -cJf "${SavedFirmwareFile}" "rpi-firmware"
+         printf "${KGRN} done ${KNRM}\n"
+      fi
+   fi
+   cd "${FirmwarePath}" 
+
+   # cp firmware/boot/bootcode.bin
+   #                  fixup.dat
+   #                  start.elf  $RBootfs/
+   # cp firmwarehardfp/opt   pi/opt/   
+
 }
 function checkExt2InstallForOSX()
 {
@@ -1957,6 +1981,7 @@ function installRaspbian()
    createRootPVolume
 
    installRaspbianKernel
+   installRaspbianFirmware
 
 }
 
