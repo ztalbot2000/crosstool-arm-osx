@@ -1123,6 +1123,16 @@ function buildCTNG()
 function runCTNG()
 {
    printf "${KBLU}Building Cross Compiler toolchain ${KNRM}\n"
+   printf "${KBLU}Checking if ${ToolchainName}-gcc already exists ${KNRM} ... "
+   testBuild
+   if [ $rc == '0' ]; then
+      printf "$KGRN} found ${KNRM}"
+      printf "$KNRM} To rebuild it, remove the old first \n"
+      return
+   else
+      printf "$KYEL} not found -OK ${KNRM}"
+      printf "$KNRM} Continuing with the build\n"
+   fi
 
    createCrossCompilerConfigFile
 
@@ -1885,13 +1895,29 @@ function installRaspbianKernel()
 
 function installRaspbianFirmware()
 {
+   # Raspbian uses the GPU as a bootloader.  The bootloader firmware is
+   # proprietary to Broadcom, so no compiling necessary. I personally like
+   # BerryBoot, but for now, lets go down the more well travelled path.  I
+   # have deviated far enough already.
+
    # This would take way to long and 6G for about nothing
    # git clone git://github.com/raspberrypi/firmware.git
 
    FirmwarePath="${CT_TOP_DIR}/src/rpi-firmware"
    FirmwareFile="rpi-firmware.tar.xz"
    SavedFirmwareFile="${SavedSourcesPath}/${FirmwareFile}"
-   FirmwareFiles="COPYING.linux LICENSE.broadcom bootcode.bin fixup.dat fixup_cd.dat fixup_db.dat fixup_x.dat start.elf start_cd.elf start_db.elf start_x.elf"
+   declare -a FirmwareFiles=( \
+       "COPYING.linux"        \
+       "LICENCE.broadcom"     \
+       "bootcode.bin"         \
+       "fixup.dat"            \
+       "fixup_cd.dat"         \
+       "fixup_db.dat"         \
+       "fixup_x.dat"          \
+       "start.elf"            \
+       "start_cd.elf"         \
+       "start_db.elf"         \
+       "start_x.elf" )
    printf "${KBLU}Getting RPI Firmware ${KNRM}\n"
    printf "${KBLU}Checking for Raspbian firmware ${KNRM} in ${FirmwarePath} ..."
    if [ -d "${FirmwarePath}" ];then
@@ -1918,10 +1944,87 @@ function installRaspbianFirmware()
    fi
    cd "${FirmwarePath}" 
 
-   # cp firmware/boot/bootcode.bin
-   #                  fixup.dat
-   #                  start.elf  $RBootfs/
-   # cp firmwarehardfp/opt   pi/opt/   
+   # Copy the firmware files to bootfs
+   printf "${KBLU}Copying firmware files ${KNRM} to ${BootFS}\n"
+
+   for i in ${FirmwareFiles[*]}; do
+       printf "${KBLU}Copying ${i} ${KNRM} ... "
+       if [ -f "${i}" ]; then
+          if [ -f "${BootFS}/${i}" ]; then
+             printf "${KYEL} replacing ... ${KNRM}"
+          fi
+          cp "${i}" "${BootFS}/${i}"
+          printf "${KGRN} done ${KNRM}\n"
+       else
+          printf "${KRED} not found ${KNRM}\n"
+          exit -1
+       fi
+   done
+
+   printf "${KBLU}Creating config.txt ${KNRM} in ${BootFS} ... "
+   cat << 'BOOTFS_CONFIG' > "${BootFS}/config.txt"
+# For more options and information see
+# http://rpf.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# uncomment if you get no picture on HDMI for a default "safe" mode
+#hdmi_safe=1
+
+# uncomment this if your display has a black border of unused pixels visible
+# and your display can output without overscan
+#disable_overscan=1
+
+# uncomment the following to adjust overscan. Use positive numbers if console
+# goes off screen, and negative if there is too much border
+#overscan_left=16
+#overscan_right=16
+#overscan_top=16
+#overscan_bottom=16
+
+# uncomment to force a console size. By default it will be display's size minus
+# overscan.
+#framebuffer_width=1280
+#framebuffer_height=720
+
+# uncomment if hdmi display is not detected and composite is being output
+#hdmi_force_hotplug=1
+
+# uncomment to force a specific HDMI mode (this will force VGA)
+#hdmi_group=1
+#hdmi_mode=1
+
+# uncomment to force a HDMI mode rather than DVI. This can make audio work in
+# DMT (computer monitor) modes
+#hdmi_drive=2
+
+# uncomment to increase signal to HDMI, if you have interference, blanking, or
+# no display
+#config_hdmi_boost=4
+
+# uncomment for composite PAL
+#sdtv_mode=2
+
+#uncomment to overclock the arm. 700 MHz is the default.
+#arm_freq=800
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+#dtparam=i2c_arm=on
+#dtparam=i2s=on
+#dtparam=spi=on
+
+# Uncomment this to enable the lirc-rpi module
+#dtoverlay=lirc-rpi
+
+# Additional overlays and parameters are documented /boot/overlays/README
+
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+BOOTFS_CONFIG
+   printf "${KGRN} done ${KNRM}\n"
+
+   printf "${KBLU}Creating cmdline.txt ${KNRM} in ${BootFS} ... "
+   echo "dwc_otg.lpm_enable=0 console=serial0,115200 console=tty1 root=PARTUUID=dc63b511-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait" > "${BootFS}/cmdline.txt"
+   printf "${KGRN} done ${KNRM}\n"
 
 }
 function checkExt2InstallForOSX()
