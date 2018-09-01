@@ -2076,17 +2076,6 @@ function buildRaspbian()
    cleanupElfHeaderForOSX
 
 }
-function installRaspbian()
-{
-   updateBrewForEXT2
-
-   createDosBootPVolume
-   createRootPVolume
-
-   installRaspbianKernel
-   installRaspbianFirmware
-
-}
 
 function updateBrewForEXT2()
 {
@@ -2213,13 +2202,64 @@ function createPartitions()
 
   mkdir -p ${RootFS}/proc
   mkdir -p ${RootFS}/sys
-  mkdir -p ${RootFS}/dev
   mkdir -p ${RootFS}/dev/pts
+  mkdir -p ${RootFS}/etc
+  mkdir -p ${RootFS}/opt/local
+  mkdir -p ${RootFS}/home
+  mkdir -p ${RootFS}/bin
+  mkdir -p ${RootFS}/sbin
   mkdir -p ${RootFS}/usr/src/delivery
 
 }
 
+function buildNoobsEnvironment()
+{
+   printf "${KBLU}Building noobs packages ${KNRM} for ${RootFS}\n"
+   NoobsSrcPath="${CT_TOP_DIR}/src/noobs"
+   NoobsSrcFile="noobs.tar.xz"
+   SavedNoobsSrcFile="${SavedSourcesPath}/${NoobsSrcFile}"
+   printf "${KBLU}Getting Noobs build environment ${KNRM}\n"
+   printf "${KBLU}Checking for Noobs build environment ${KNRM} in ${NoobsSrcPath} ..."
+   if [ -d "${NoobsSrcPath}" ];then
+      printf "${KGRN} found ${KNRM}\n"
+   else
+      printf "${KYEL} not found -OK ${KNRM}\n"
+      printf "${KBLU}Checking for saved Noobs build environment ${KNRM} ${SavedNoobsSrcFile} ... "
+      if [ -f  "${SavedNoobsSrcFile}" ];then
+         printf "${KGRN} found ${KNRM}\n"
+         printf "${KBLU}Extracting saved Noobs build environment ${KNRM} ${NoobsSrcFile} ... "
+         tar -xf "${SavedNoobsSrcFile}" -C "${CT_TOP_DIR}/src"
+         printf "${KGRN} done ${KNRM}\n"
+      else
+         printf "${KYEL} not found -OK ${KNRM}\n"
+         printf "${KBLU}Downloading Noobs build environment ${KNRM} ... "
+         cd "${CT_TOP_DIR}/src"
+         # Grab the noobs repo
+         git clone --depth=1  "https://github.com/raspberrypi/noobs.git"
+         printf "${KGRN} done ${KNRM}\n"
+         printf "${KBLU}Saving Noobs build environment ${KNRM} ... "
+         tar -cJf "${SavedNoobsSrcFile}" "noobs"
+         printf "${KGRN} done ${KNRM}\n"
+      fi
+   fi
+   cd "${NoobsSrcPath}" 
 
+   printf "${KBLU}Building noobs packages ${KNRM} to ${RootFS}\n"
+
+}
+
+function installRaspbian()
+{
+   updateBrewForEXT2
+
+   createDosBootPVolume
+   createRootPVolume
+
+   installRaspbianKernel
+   installRaspbianFirmware
+   buildNoobsEnvironment
+
+}
 
 function updateVariables()
 {
