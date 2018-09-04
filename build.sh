@@ -135,6 +135,8 @@ CT_TOP_DIR="/Volumes/CrossToolNG"
 CT_TOP_DIR="/Volumes/${Volume}"
 
 
+# Where noobs source will go
+NoobsSrcPath="${CT_TOP_DIR}/src/noobs"
 
 # Where Raspbian boot files will be placed
 # MSDOS FAT16 volume names are limited to 8 characters
@@ -1893,140 +1895,6 @@ function installRaspbianKernel()
    printf "${KGRN} done ${KNRM}\n"
 }
 
-function installRaspbianFirmware()
-{
-   # Raspbian uses the GPU as a bootloader.  The bootloader firmware is
-   # proprietary to Broadcom, so no compiling necessary. I personally like
-   # BerryBoot, but for now, lets go down the more well travelled path.  I
-   # have deviated far enough already.
-
-   # This would take way to long and 6G for about nothing
-   # git clone git://github.com/raspberrypi/firmware.git
-
-   FirmwarePath="${CT_TOP_DIR}/src/rpi-firmware"
-   FirmwareFile="rpi-firmware.tar.xz"
-   SavedFirmwareFile="${SavedSourcesPath}/${FirmwareFile}"
-   declare -a FirmwareFiles=( \
-       "COPYING.linux"        \
-       "LICENCE.broadcom"     \
-       "bootcode.bin"         \
-       "fixup.dat"            \
-       "fixup_cd.dat"         \
-       "fixup_db.dat"         \
-       "fixup_x.dat"          \
-       "start.elf"            \
-       "start_cd.elf"         \
-       "start_db.elf"         \
-       "start_x.elf" )
-   printf "${KBLU}Getting RPI Firmware ${KNRM}\n"
-   printf "${KBLU}Checking for Raspbian firmware ${KNRM} in ${FirmwarePath} ..."
-   if [ -d "${FirmwarePath}" ];then
-      printf "${KGRN} found ${KNRM}\n"
-   else
-      printf "${KYEL} not found -OK ${KNRM}\n"
-      printf "${KBLU}Checking for saved firmware ${KNRM} ${SavedFirmwareFile} ... "
-      if [ -f  "${SavedFirmwareFile}" ];then
-         printf "${KGRN} found ${KNRM}\n"
-         printf "${KBLU}Extracting saved firmware ${KNRM} ${FirmwareFile} ... "
-         tar -xf "${SavedFirmwareFile}" -C "${CT_TOP_DIR}/src"
-         printf "${KGRN} done ${KNRM}\n"
-      else
-         printf "${KYEL} not found -OK ${KNRM}\n"
-         printf "${KBLU}Downloading firmware ${KNRM} ... "
-         cd "${CT_TOP_DIR}/src"
-         # Grab the rpi-update repo
-         git clone --depth=1  "https://github.com/Hexxeh/rpi-firmware"
-         printf "${KGRN} done ${KNRM}\n"
-         printf "${KBLU}Saving firmware ${KNRM} ... "
-         tar -cJf "${SavedFirmwareFile}" "rpi-firmware"
-         printf "${KGRN} done ${KNRM}\n"
-      fi
-   fi
-   cd "${FirmwarePath}" 
-
-   # Copy the firmware files to bootfs
-   printf "${KBLU}Copying firmware files ${KNRM} to ${BootFS}\n"
-
-   for i in ${FirmwareFiles[*]}; do
-       printf "${KBLU}Copying ${i} ${KNRM} ... "
-       if [ -f "${i}" ]; then
-          if [ -f "${BootFS}/${i}" ]; then
-             printf "${KYEL} replacing ... ${KNRM}"
-          fi
-          cp "${i}" "${BootFS}/${i}"
-          printf "${KGRN} done ${KNRM}\n"
-       else
-          printf "${KRED} not found ${KNRM}\n"
-          exit -1
-       fi
-   done
-
-   printf "${KBLU}Creating config.txt ${KNRM} in ${BootFS} ... "
-   cat << 'BOOTFS_CONFIG' > "${BootFS}/config.txt"
-# For more options and information see
-# http://rpf.io/configtxt
-# Some settings may impact device functionality. See link above for details
-
-# uncomment if you get no picture on HDMI for a default "safe" mode
-#hdmi_safe=1
-
-# uncomment this if your display has a black border of unused pixels visible
-# and your display can output without overscan
-#disable_overscan=1
-
-# uncomment the following to adjust overscan. Use positive numbers if console
-# goes off screen, and negative if there is too much border
-#overscan_left=16
-#overscan_right=16
-#overscan_top=16
-#overscan_bottom=16
-
-# uncomment to force a console size. By default it will be display's size minus
-# overscan.
-#framebuffer_width=1280
-#framebuffer_height=720
-
-# uncomment if hdmi display is not detected and composite is being output
-#hdmi_force_hotplug=1
-
-# uncomment to force a specific HDMI mode (this will force VGA)
-#hdmi_group=1
-#hdmi_mode=1
-
-# uncomment to force a HDMI mode rather than DVI. This can make audio work in
-# DMT (computer monitor) modes
-#hdmi_drive=2
-
-# uncomment to increase signal to HDMI, if you have interference, blanking, or
-# no display
-#config_hdmi_boost=4
-
-# uncomment for composite PAL
-#sdtv_mode=2
-
-#uncomment to overclock the arm. 700 MHz is the default.
-#arm_freq=800
-
-# Uncomment some or all of these to enable the optional hardware interfaces
-#dtparam=i2c_arm=on
-#dtparam=i2s=on
-#dtparam=spi=on
-
-# Uncomment this to enable the lirc-rpi module
-#dtoverlay=lirc-rpi
-
-# Additional overlays and parameters are documented /boot/overlays/README
-
-# Enable audio (loads snd_bcm2835)
-dtparam=audio=on
-BOOTFS_CONFIG
-   printf "${KGRN} done ${KNRM}\n"
-
-   printf "${KBLU}Creating cmdline.txt ${KNRM} in ${BootFS} ... "
-   echo "dwc_otg.lpm_enable=0 console=serial0,115200 console=tty1 root=PARTUUID=dc63b511-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait" > "${BootFS}/cmdline.txt"
-   printf "${KGRN} done ${KNRM}\n"
-
-}
 function checkExt2InstallForOSX()
 {
 
@@ -2187,7 +2055,9 @@ function createRootPVolume()
                       -puppetstrings
    fi
 
-   hdiutil mount ${RootDir}.sparseimage
+   # In order to create files owned by root on a volume, it must be attached
+   # as owned on 
+   hdiutil  attach -owners on ${RootDir}.sparseimage
 }
 
 function createPartitions()
@@ -2200,22 +2070,165 @@ function createPartitions()
 
 
 
-  mkdir -p ${RootFS}/proc
-  mkdir -p ${RootFS}/sys
+  mkdir -p ${RootFS}/bin
+  mkdir -p ${RootFS}/boot
   mkdir -p ${RootFS}/dev/pts
   mkdir -p ${RootFS}/etc
-  mkdir -p ${RootFS}/opt/local
   mkdir -p ${RootFS}/home
-  mkdir -p ${RootFS}/bin
+  mkdir -p ${RootFS}/lib
+  mkdir -p ${RootFS}/lost-found
+  mkdir -p ${RootFS}/media
+  mkdir -p ${RootFS}/mnt
+  mkdir -p ${RootFS}/opt
+  mkdir -p ${RootFS}/opt/local
+  mkdir -p ${RootFS}/proc
+  mkdir -p ${RootFS}/root
+  mkdir -p ${RootFS}/run
+  mkdir -p ${RootFS}/srv
+  mkdir -p ${RootFS}/sys
   mkdir -p ${RootFS}/sbin
   mkdir -p ${RootFS}/usr/src/delivery
+  mkdir -p ${RootFS}/var
 
 }
 
+function installRaspbianFirmware()
+{
+   # Raspbian uses the GPU as a bootloader.  The bootloader firmware is
+   # proprietary to Broadcom, so no compiling necessary. I personally like
+   # BerryBoot, but for now, lets go down the more well travelled path.  I
+   # have deviated far enough already.
+
+   # This would take way to long and 6G for about nothing
+   # git clone git://github.com/raspberrypi/firmware.git
+
+   FirmwarePath="${CT_TOP_DIR}/src/rpi-firmware"
+   FirmwareFile="rpi-firmware.tar.xz"
+   SavedFirmwareFile="${SavedSourcesPath}/${FirmwareFile}"
+   declare -a FirmwareFiles=( \
+       "COPYING.linux"        \
+       "LICENCE.broadcom"     \
+       "bootcode.bin"         \
+       "fixup.dat"            \
+       "fixup_cd.dat"         \
+       "fixup_db.dat"         \
+       "fixup_x.dat"          \
+       "start.elf"            \
+       "start_cd.elf"         \
+       "start_db.elf"         \
+       "start_x.elf" )
+   printf "${KBLU}Getting RPI Firmware ${KNRM}\n"
+   printf "${KBLU}Checking for Raspbian firmware ${KNRM} in ${FirmwarePath} ..."
+   if [ -d "${FirmwarePath}" ];then
+      printf "${KGRN} found ${KNRM}\n"
+   else
+      printf "${KYEL} not found -OK ${KNRM}\n"
+      printf "${KBLU}Checking for saved firmware ${KNRM} ${SavedFirmwareFile} ... "
+      if [ -f  "${SavedFirmwareFile}" ];then
+         printf "${KGRN} found ${KNRM}\n"
+         printf "${KBLU}Extracting saved firmware ${KNRM} ${FirmwareFile} ... "
+         tar -xf "${SavedFirmwareFile}" -C "${CT_TOP_DIR}/src"
+         printf "${KGRN} done ${KNRM}\n"
+      else
+         printf "${KYEL} not found -OK ${KNRM}\n"
+         printf "${KBLU}Downloading firmware ${KNRM} ... "
+         cd "${CT_TOP_DIR}/src"
+         # Grab the rpi-update repo
+         git clone --depth=1  "https://github.com/Hexxeh/rpi-firmware"
+         printf "${KGRN} done ${KNRM}\n"
+         printf "${KBLU}Saving firmware ${KNRM} ... "
+         tar -cJf "${SavedFirmwareFile}" "rpi-firmware"
+         printf "${KGRN} done ${KNRM}\n"
+      fi
+   fi
+   cd "${FirmwarePath}" 
+
+   # Copy the firmware files to bootfs
+   printf "${KBLU}Copying firmware files ${KNRM} to ${BootFS}\n"
+
+   for i in ${FirmwareFiles[*]}; do
+       printf "${KBLU}Copying ${i} ${KNRM} ... "
+       if [ -f "${i}" ]; then
+          if [ -f "${BootFS}/${i}" ]; then
+             printf "${KYEL} replacing ... ${KNRM}"
+          fi
+          cp "${i}" "${BootFS}/${i}"
+          printf "${KGRN} done ${KNRM}\n"
+       else
+          printf "${KRED} not found ${KNRM}\n"
+          exit -1
+       fi
+   done
+
+   printf "${KBLU}Creating config.txt ${KNRM} in ${BootFS} ... "
+   cat << 'BOOTFS_CONFIG' > "${BootFS}/config.txt"
+# For more options and information see
+# http://rpf.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# uncomment if you get no picture on HDMI for a default "safe" mode
+#hdmi_safe=1
+
+# uncomment this if your display has a black border of unused pixels visible
+# and your display can output without overscan
+#disable_overscan=1
+
+# uncomment the following to adjust overscan. Use positive numbers if console
+# goes off screen, and negative if there is too much border
+#overscan_left=16
+#overscan_right=16
+#overscan_top=16
+#overscan_bottom=16
+
+# uncomment to force a console size. By default it will be display's size minus
+# overscan.
+#framebuffer_width=1280
+#framebuffer_height=720
+
+# uncomment if hdmi display is not detected and composite is being output
+#hdmi_force_hotplug=1
+
+# uncomment to force a specific HDMI mode (this will force VGA)
+#hdmi_group=1
+#hdmi_mode=1
+
+# uncomment to force a HDMI mode rather than DVI. This can make audio work in
+# DMT (computer monitor) modes
+#hdmi_drive=2
+
+# uncomment to increase signal to HDMI, if you have interference, blanking, or
+# no display
+#config_hdmi_boost=4
+
+# uncomment for composite PAL
+#sdtv_mode=2
+
+#uncomment to overclock the arm. 700 MHz is the default.
+#arm_freq=800
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+#dtparam=i2c_arm=on
+#dtparam=i2s=on
+#dtparam=spi=on
+
+# Uncomment this to enable the lirc-rpi module
+#dtoverlay=lirc-rpi
+
+# Additional overlays and parameters are documented /boot/overlays/README
+
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+BOOTFS_CONFIG
+   printf "${KGRN} done ${KNRM}\n"
+
+   printf "${KBLU}Creating cmdline.txt ${KNRM} in ${BootFS} ... "
+   echo "dwc_otg.lpm_enable=0 console=serial0,115200 console=tty1 root=PARTUUID=dc63b511-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait" > "${BootFS}/cmdline.txt"
+   printf "${KGRN} done ${KNRM}\n"
+
+}
 function buildNoobsEnvironment()
 {
    printf "${KBLU}Building noobs packages ${KNRM} for ${RootFS}\n"
-   NoobsSrcPath="${CT_TOP_DIR}/src/noobs"
    NoobsSrcFile="noobs.tar.xz"
    SavedNoobsSrcFile="${SavedSourcesPath}/${NoobsSrcFile}"
    printf "${KBLU}Getting Noobs build environment ${KNRM}\n"
@@ -2242,11 +2255,40 @@ function buildNoobsEnvironment()
          printf "${KGRN} done ${KNRM}\n"
       fi
    fi
-   cd "${NoobsSrcPath}" 
+   # cd "${NoobsSrcPath}/buildroot" 
+   # It does not build as we are not on a Linux system
+   # printf "${KBLU}Building noobs packages ${KNRM} to ${RootFS}\n"
+   # make -o ${RootFS}
 
-   printf "${KBLU}Building noobs packages ${KNRM} to ${RootFS}\n"
 
 }
+function makeRootDevices()
+{
+   printf "${KBLU}Creating device files ${KNRM}\n"
+   printf "${KBLU}Checking first for /dev/mem ${KNRM} in ${RootFS} ... "
+   if [ -f "${RootFS}/dev/mem" ]; then
+      printf "${KYEL} found ${KNRM}\n"
+      printf "${KYEL} Assuming the remaining dwvices need not be created ${KNRM}\n"
+      return
+   fi
+   cd "${NoobsSrcPath}/buildroot/package/makedevs" 
+   printf "${KBLU}Checking for existing makedevs ${KNRM} ... "
+   if [ -x "makedevs" ]; then
+      printf "${KGRN} found ${KNRM}\n"
+   else
+      printf "${KBLU}Compiling makedevs ${KNRM} ... "
+      make -f makedevs.mk makedevs
+      printf "${KGRN} done ${KNRM}\n"
+   fi
+   # printf "${KBLU}Massaging device_table_file for ${RootFS}${KNRM} ... "
+   DeviceFile="${NoobsSrcPath}/buildroot/system/device_table_dev.txt"
+   # sed -i.bak -e's#^/dev#'$RootFS'/dev#g' ${DeviceFile}
+   # printf "${KGRN} done ${KNRM}\n"
+   printf "${KBLU}Running makedevs (Sorry, it must be done via sudo) ${KNRM}\n "
+   sudo ./makedevs -d ${DeviceFile} ${RootFS}
+   printf "${KGRN} done ${KNRM}\n"
+}
+
 
 function installRaspbian()
 {
@@ -2258,6 +2300,7 @@ function installRaspbian()
    installRaspbianKernel
    installRaspbianFirmware
    buildNoobsEnvironment
+   makeRootDevices
 
 }
 
@@ -2285,6 +2328,8 @@ function updateVariables()
    fi
    BrewHome="/Volumes/${VolumeBase}/brew"
    CT_TOP_DIR="/Volumes/${Volume}"
+
+   NoobsSrcPath="${CT_TOP_DIR}/src/noobs"
 
    export BREW_PREFIX=$BrewHome
    export PKG_CONFIG_PATH=$BREW_PREFIX
