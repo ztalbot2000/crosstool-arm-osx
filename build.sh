@@ -151,6 +151,10 @@ RootFS="/Volumes/${RootDir}"
 # This will save checking for them each time
 CmdOptionString=""
 
+# Adding to PATH can be exponentially explosive, so just keep three
+OriginalPath=$PATH
+PathWithBrewTools=""
+PathWithCrossCompiler=""
 
 # Options to be toggled from command line
 # see -help
@@ -288,11 +292,110 @@ function waitForPid()
    rc=$?
 }
 
+function wgetList()
+{
+   export PATH=$PathWithBrewTools
+   
+   printf "${KBLU}Retrieving sources ${KNRM}\n"
+   
+	cat << '   WGET_LIST_EOF' > /tmp/wget-list
+	
+http://download.savannah.gnu.org/releases/acl/acl-2.2.52.src.tar.gz
+http://download.savannah.gnu.org/releases/attr/attr-2.4.47.src.tar.gz
+http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz
+http://ftp.gnu.org/gnu/automake/automake-1.15.1.tar.xz
+http://ftp.gnu.org/gnu/bash/bash-4.4.18.tar.gz
+http://ftp.gnu.org/gnu/bc/bc-1.07.1.tar.gz
+http://ftp.gnu.org/gnu/binutils/binutils-2.30.tar.xz
+http://ftp.gnu.org/gnu/bison/bison-3.0.4.tar.xz
+http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
+https://github.com/libcheck/check/releases/download/0.12.0/check-0.12.0.tar.gz
+http://ftp.gnu.org/gnu/coreutils/coreutils-8.29.tar.xz
+http://dbus.freedesktop.org/releases/dbus/dbus-1.12.4.tar.gz
+http://ftp.gnu.org/gnu/dejagnu/dejagnu-1.6.1.tar.gz
+http://ftp.gnu.org/gnu/diffutils/diffutils-3.6.tar.xz
+http://dev.gentoo.org/~blueness/eudev/eudev-3.2.5.tar.gz
+http://downloads.sourceforge.net/project/e2fsprogs/e2fsprogs/v1.43.9/e2fsprogs-1.43.9.tar.gz
+https://sourceware.org/ftp/elfutils/0.170/elfutils-0.170.tar.bz2
+http://prdownloads.sourceforge.net/expat/expat-2.2.5.tar.bz2
+http://prdownloads.sourceforge.net/expect/expect5.45.4.tar.gz
+ftp://ftp.astron.com/pub/file/file-5.32.tar.gz
+http://ftp.gnu.org/gnu/findutils/findutils-4.6.0.tar.gz
+https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz
+http://ftp.gnu.org/gnu/gawk/gawk-4.2.0.tar.xz
+http://ftp.gnu.org/gnu/gcc/gcc-7.3.0/gcc-7.3.0.tar.xz
+http://ftp.gnu.org/gnu/gdbm/gdbm-1.14.1.tar.gz
+http://ftp.gnu.org/gnu/gettext/gettext-0.19.8.1.tar.xz
+http://ftp.gnu.org/gnu/glibc/glibc-2.27.tar.xz
+http://ftp.gnu.org/gnu/gmp/gmp-6.1.2.tar.xz
+http://ftp.gnu.org/gnu/gperf/gperf-3.1.tar.gz
+http://ftp.gnu.org/gnu/grep/grep-3.1.tar.xz
+http://ftp.gnu.org/gnu/groff/groff-1.22.3.tar.gz
+http://ftp.gnu.org/gnu/grub/grub-2.02.tar.xz
+http://ftp.gnu.org/gnu/gzip/gzip-1.9.tar.xz
+http://anduin.linuxfromscratch.org/LFS/iana-etc-2.30.tar.bz2
+http://ftp.gnu.org/gnu/inetutils/inetutils-1.9.4.tar.xz
+http://launchpad.net/intltool/trunk/0.51.0/+download/intltool-0.51.0.tar.gz
+https://www.kernel.org/pub/linux/utils/net/iproute2/iproute2-4.15.0.tar.xz
+https://www.kernel.org/pub/linux/utils/kbd/kbd-2.0.4.tar.xz
+https://www.kernel.org/pub/linux/utils/kernel/kmod/kmod-25.tar.xz
+http://www.greenwoodsoftware.com/less/less-530.tar.gz
+http://www.linuxfromscratch.org/lfs/downloads/8.2/lfs-bootscripts-20170626.tar.bz2
+https://www.kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.25.tar.xz
+ftp://sourceware.org/pub/libffi/libffi-3.2.1.tar.gz
+http://download.savannah.gnu.org/releases/libpipeline/libpipeline-1.5.0.tar.gz
+http://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz
+https://www.kernel.org/pub/linux/kernel/v4.x/linux-4.15.3.tar.xz
+http://ftp.gnu.org/gnu/m4/m4-1.4.18.tar.xz
+http://ftp.gnu.org/gnu/make/make-4.2.1.tar.bz2
+http://download.savannah.gnu.org/releases/man-db/man-db-2.8.1.tar.xz
+https://www.kernel.org/pub/linux/docs/man-pages/man-pages-4.15.tar.xz
+https://github.com/mesonbuild/meson/releases/download/0.44.0/meson-0.44.0.tar.gz
+https://ftp.gnu.org/gnu/mpc/mpc-1.1.0.tar.gz
+http://www.mpfr.org/mpfr-4.0.1/mpfr-4.0.1.tar.xz
+https://github.com/ninja-build/ninja/archive/v1.8.2/ninja-1.8.2.tar.gz
+http://ftp.gnu.org/gnu//ncurses/ncurses-6.1.tar.gz
+https://openssl.org/source/openssl-1.1.0g.tar.gz
+http://ftp.gnu.org/gnu/patch/patch-2.7.6.tar.xz
+http://www.cpan.org/src/5.0/perl-5.26.1.tar.xz
+https://pkg-config.freedesktop.org/releases/pkg-config-0.29.2.tar.gz
+http://sourceforge.net/projects/procps-ng/files/Production/procps-ng-3.3.12.tar.xz
+https://sourceforge.net/projects/psmisc/files/psmisc/psmisc-23.1.tar.xz
+https://www.python.org/ftp/python/3.6.4/Python-3.6.4.tar.xz
+https://docs.python.org/ftp/python/doc/3.6.4/python-3.6.4-docs-html.tar.bz2
+http://ftp.gnu.org/gnu/readline/readline-7.0.tar.gz
+http://ftp.gnu.org/gnu/sed/sed-4.4.tar.xz
+https://github.com/shadow-maint/shadow/releases/download/4.5/shadow-4.5.tar.xz
+http://www.infodrom.org/projects/sysklogd/download/sysklogd-1.5.1.tar.gz
+https://github.com/systemd/systemd/archive/v237/systemd-237.tar.gz
+http://anduin.linuxfromscratch.org/LFS/systemd-man-pages-237.tar.xz
+http://download.savannah.gnu.org/releases/sysvinit/sysvinit-2.88dsf.tar.bz2
+http://ftp.gnu.org/gnu/tar/tar-1.30.tar.xz
+https://downloads.sourceforge.net/tcl/tcl8.6.8-src.tar.gz
+http://ftp.gnu.org/gnu/texinfo/texinfo-6.5.tar.xz
+http://www.iana.org/time-zones/repository/releases/tzdata2018c.tar.gz
+http://anduin.linuxfromscratch.org/LFS/udev-lfs-20171102.tar.bz2
+https://www.kernel.org/pub/linux/utils/util-linux/v2.31/util-linux-2.31.1.tar.xz
+ftp://ftp.vim.org/pub/vim/unix/vim-8.0.586.tar.bz2
+http://cpan.metacpan.org/authors/id/T/TO/TODDR/XML-Parser-2.44.tar.gz
+http://tukaani.org/xz/xz-5.2.3.tar.xz
+http://zlib.net/zlib-1.2.11.tar.xz
+http://www.linuxfromscratch.org/patches/lfs/8.2/bzip2-1.0.6-install_docs-1.patch
+http://www.linuxfromscratch.org/patches/lfs/8.2/coreutils-8.29-i18n-1.patch
+http://www.linuxfromscratch.org/patches/lfs/8.2/glibc-2.27-fhs-1.patch
+http://www.linuxfromscratch.org/patches/lfs/8.2/kbd-2.0.4-backspace-1.patch
+http://www.linuxfromscratch.org/patches/lfs/8.2/ninja-1.8.2-add_NINJAJOBS_var-1.patch
+http://www.linuxfromscratch.org/patches/lfs/8.2/sysvinit-2.88dsf-consolidated-1.patch
+
+   WGET_LIST_EOF
+   
+   wget --input-file=/tmp/wget-list --continue --directory-prefix=$SavedSourcesPath/sources
+}
 
 function cleanBrew()
 {
    if [ -f "${BrewHome}/.flagToDeleteBrewLater" ]; then
-   printf "${KBLU}Cleaning our brew tools ${KNRM}\n"
+      printf "${KBLU}Cleaning our brew tools ${KNRM}\n"
       printf "Checking for ${KNRM} ${BrewHome} ... "
       if [ -d "${BrewHome}" ]; then
          printf "${KGRN} found ${KNRM}\n"
@@ -513,7 +616,7 @@ function buildBrewTools()
       printf "${KGRN} found ${KNRM}\n"
    fi
 
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=$PathWithBrewTools
 
    printf "${KBLU}Updating HomeBrew tools${KNRM} ...\n"
    printf "${KRED}Ignore the ERROR: could not link ${KNRM}\n"
@@ -1161,7 +1264,7 @@ function runCTNG()
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
-   export PATH=${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
+   export PATH=$CrossCompilerPath
 
    if [ "${RunCTNGOptArg}" == "list-steps" ]; then
       ct-ng "${RunCTNGOptArg}"
@@ -1499,7 +1602,7 @@ HELLO_WORLD_EOF
 function testHostCompiler()
 {
    printf "${KBLU}Running Host Compiler tests ${KNRM}\n"
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$PATH 
+   export PATH=$PathWithBrewTools
 
    testHostgcc 
    if [ ${rc} != '0' ]; then
@@ -1745,8 +1848,7 @@ function configureRaspbianKernel()
    cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel ${KNRM} in ${PWD}\n"
 
-   export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH 
-   echo $PATH
+   export PATH=$PathWithCrossCompiler
 
 
    # for bzImage
@@ -1947,7 +2049,7 @@ function buildRaspbian()
 
 function updateBrewForEXT2()
 {
-   export PATH=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:$PATH 
+   export PATH=$PathWithBrewTools
 
    if [ ! -d $BrewHome/Caskroom/osxfuse ] &&
       [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
@@ -2226,6 +2328,18 @@ BOOTFS_CONFIG
    printf "${KGRN} done ${KNRM}\n"
 
 }
+function setupEnvironmentForNoobsCrossCompile()
+{
+   # We need a way to build noobs for cross compiling, which it does
+   # not support. Otherwise we will get bogged down in doing eerything
+   # ourselves
+   printf "${KBLU}Building noobs packages ${KNRM} for ${RootFS}\n"
+   TARGET_DIR=${RootFS}
+   MAKE=make
+   INSTALL=install
+   export LFS=${RootFS}
+}
+
 function buildNoobsEnvironment()
 {
    printf "${KBLU}Building noobs packages ${KNRM} for ${RootFS}\n"
@@ -2335,6 +2449,11 @@ function updateVariables()
    export PKG_CONFIG_PATH=$BREW_PREFIX
    export HOMEBREW_CACHE=${SavedSourcesPath}
    export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs
+   
+   PathWithBrewTools=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:$OriginalPath 
+   
+   PathWithCrossCompiler=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$OriginalPath 
+   
 }
 
 
