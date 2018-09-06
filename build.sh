@@ -76,7 +76,6 @@ ThisToolsStartingPath="${PWD}"
 # The real name is based upon the options you have set in the CrossToolNG
 # config file. You will probably need to change this.  You now can do so with
 # the option -T <ToolchainName>. The default being armv8-rpi3-linux-gnueabihf
-ToolchainNameOpt='n'
 ToolchainName='armv8-rpi3-linux-gnueabihf'
 
 #
@@ -101,8 +100,8 @@ SavedSourcesPath="/Volumes/${VolumeBase}/sources"
 # changed with the -O <OutputDir> option
 OutputDir='x-tools'
 
-
-
+# Where the Raspbian kernel will be written to
+TargetUSBDevice=""
 
 # Where brew will be placed. An existing brew cannot be used because of
 # interferences with macports or fink.
@@ -158,6 +157,7 @@ PathWithCrossCompiler=""
 
 # Options to be toggled from command line
 # see -help
+ToolchainNameOpt='n'
 CleanRaspbianOpt='n'
 VolumeOpt='n'
 OutputDirOpt='n'
@@ -1264,7 +1264,7 @@ function runCTNG()
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
-   export PATH=$CrossCompilerPath
+   export PATH=$PathWithCrossCompiler
 
    if [ "${RunCTNGOptArg}" == "list-steps" ]; then
       ct-ng "${RunCTNGOptArg}"
@@ -2162,6 +2162,121 @@ function createRootPVolume()
    hdiutil  attach -owners on ${RootDir}.sparseimage
 }
 
+function getUSBDevices()
+{
+   printf "${KBLU}Finding USB flash devices available to write kernel to${KNRM} ...\n"
+   
+   # Create an array of lines of system USB devices
+   lines=()
+   while IFS=$'\n' read -r line_data; do
+      lines+=("${line_data}")
+   done <  <( system_profiler  -detailLevel mini SPUSBDataType )
+   
+   # An array of found device and their corresponding device number
+   FoundDeviceNumbers=()
+   FoundDevices=()
+   
+   # Go over all the output stored in the array of lines
+   for (( i=0; i<${#lines[@]}; i++ )); do
+      line=${lines[$i]}
+      
+      # We are close to the device number when USB tags are found
+      if [[ "${line}" = *"USB SD Reader:"* ]] ||
+         [[ "${line}" = *"FLASH DRIVE:"* ]]
+      then
+         device=""
+         if [[ "${line}" = *"USB SD Reader:"* ]]; then
+            device="USB SD Reader:"
+         fi
+         if [[ "${line}" = *"FLASH DRIVE:"* ]]; then
+            device="FLASH DRIVE:"
+         fi
+         
+         # Now continue searching for the device number
+         for (( i++, j=$i; j<${#lines[@]}; j++, i++ )); do 
+            line=${lines[$j]}
+            
+            # Blank lines means we are not close
+            if [ "${line}" = "" ]; then
+               break 1
+            fi
+            
+            # Search for the disk number
+            if [[ "${line}" = *"disk"* ]]; then
+               DeviceNumber=$(echo "${line}" | grep -o -E '[0-9]+$')
+               if [[ $DeviceNumber -ge 2 ]]; then
+                 
+                  FoundDeviceNumbers+=("${DeviceNumber}")
+                  FoundDevices+=("${device}")
+               else
+                  printf "Ignoring disk${DeviceNumber} as it is less than 2\n"
+              fi
+              
+              # Continue searching for other devices
+              break 1
+           fi
+         done
+      fi
+   done
+   
+   if [[ ! ${#FoundDeviceNumbers[@]} -gt 0 ]]; then
+      printf "${KRED}No flash device found ${KNRM}\n"
+      printf "${KRED}Insert a device and rerun ${KNRM}\n"
+      exit -1
+   fi
+   
+   
+   if [[ ${#FoundDeviceNumbers[@]} -eq 1 ]]; then
+      printf "${KNRM}Found /dev/disk${FoundDevices[0]}${KNRM}\n"
+      read -p "${KNRM}Is this correct (Y/n) " -r
+      if [ "${REPLY}" = "Y" ] || [ "$REPLY" = "y" ]; then
+         rc=${FoundDevices[0]}
+         return
+      fi
+      if [ "${REPLY}" = "N" ] || [ "$REPLY" = "n" ]; then
+         printf "${KRED}Insert a device and rerun. ${KNRM}\n"
+         exit -1
+      fi
+      printf "${KRED}You haven't entered a correct response.${KNRM}\n"
+      printf "${KRED}Aborted due user input.${KNRM}\n"
+      exit -1
+   fi
+   
+   printf "${KGRN}Found devices: $KNRM}\n"
+   for (( i=0; i<${#FoundDeviceNumbers[@]}; i++ )); do
+        printf "${FoundDevices[$i]} /dev/disk${FoundDeviceNumbers[$i]}\n"
+   done
+   
+   
+   printf "${KNRM}To which device you would like to write Rasbian to? ${KNRM}\n"
+   read -p "(Please only enter the number like 2 for /dev/disk2) " -r
+   if [[ ! $REPLY =~ ^[0-9]$ ]]; then
+      printf "${KRED}You haven't entered a number.${KNRM}\n"
+      printf "${KRED}Aborted due user request.${KNRM}\n"
+      exit -1
+   else
+      if [[ ! $REPLY -ge 2 ]]; then
+         printf "${KRED}The number is lower than 2.${KNRM}\n"
+         printf "${KRED}Since /dev/disk0 and /dev/disk1 are usually system drives,${KNRM}\n"
+         printf "${KRED}We can't accept this device. We don't want to possibly destroy your ${KNRM}\n"
+         printf "${KRED}system. ${KYEL};-) ${KNRM}\n"
+         exit -1
+      else
+         if [[ ! " ${FoundDeviceNumbers[@]} " =~ " ${REPLY} " ]]; then
+             printf "${KRED}The number is not in the given list.${KNRM}\n"
+             printf "${KRED}Insert a device and rerun or next time ${KNRM}\n"
+             printf "${KRED}Enter a number from the given list.${KNRM}\n"
+             exit -1
+         fi
+
+         rc=${REPLY}
+         
+         return
+      fi
+   fi
+  
+}
+
 function createPartitions()
 {
   # bootp=${device}p1
@@ -2192,6 +2307,115 @@ function createPartitions()
   mkdir -p ${RootFS}/usr/src/delivery
   mkdir -p ${RootFS}/var
 
+}
+function downloadRaspbianStretch()
+{
+   RaspbianStretchURL="http://director.downloads.raspberrypi.org/raspbian/images/raspbian-2018-06-29/2018-06-27-raspbian-stretch.zip"
+
+   
+   
+   dd if=raspbian-yyyy-mm-dd.img of=/dev/mmcblk0 bs=1M && sync
+   
+   printf "${KBLU}Downloading Raspbian Stretch latest ${KNRM} \n"
+
+   
+   
+
+   cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+
+   printf "${KBLU}Checking for ${KNRM} ${RaspbianSrcDir}/linux ... "
+   if [ -d "${CT_TOP_DIR}/${RaspbianSrcDir}/linux" ]; then
+      cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
+      printf "${KGRN} found ${KNRM}\n"
+      printf "${KRED}WARNING ${KNRM}Path already exists ${RaspbianSrcDir} ${KNRM}\n"
+      # printf "        A fetch will be done instead to keep tree up to date\n"
+      # printf "\n"
+      cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
+      # git fetch
+    
+   else
+      printf "${KYEL} not found -OK ${KNRM}\n"
+      printf "${KBLU}Checking for saved ${KNRM} Raspbian.tar.xz ... "
+      if [ -f "${SavedSourcesPath}/Raspbian.tar.xz" ]; then
+         printf "${KGRN} found ${KNRM}\n"
+
+         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+         printf "${KBLU}Extracting saved ${KNRM} ${SavedSourcesPath}/Raspbian.tar.xz ... Logging to /tmp/Raspbian_extract.log\n"
+
+         # I dont know why this is true, but tar fails otherwise
+         set +e
+         tar -xzf ${SavedSourcesPath}/Raspbian.tar.xz  > /tmp/Raspbian_extract.log 2>&1 &
+
+         pid="$!"
+         waitForPid ${pid}
+
+         # Exit immediately if a command exits with a non-zero status
+         set -e
+
+         if [ $rc != 0 ]; then
+            printf "${KRED}Error : [${rc}] ${KNRM} extract failed. \n"
+            exit $rc
+         fi
+ 
+         printf "${KGRN} done ${KNRM}\n"
+         
+      else
+         printf "${KYEL} not found -OK${KNRM}\n"
+         printf "${KBLU}Cloning Raspbian from git ${KNRM} \n"
+         printf "${KBLU}This will take a while, but a copy will ${KNRM} \n"
+         printf "${KBLU}be saved for the future. ${KNRM} \n"
+         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+
+         # results in git branch ->
+         #            4.14.y
+         #            and all remotes, No mptcp
+         # git clone -recursive ${RaspbianURL}
+
+         # results in git branch -> 
+         #            rpi-4.14.y
+         #            remotes/origin/HEAD -> origin/rpi-4.14.y
+         #            remotes/origin/rpi-4.14.y
+         # git clone --depth=1 ${RaspbianURL} 
+
+         git clone ${RaspbianURL} 
+
+         printf "${KGRN} done ${KNRM}\n"
+
+         printf "${KBLU}Checking out remotes/origin/rpi-4.18.y  ${KNRM} \n"
+         cd linux
+         git checkout -b remotes/origin/rpi-4.18.y
+
+         printf "${KGRN} checkout complete ${KNRM}\n"
+
+         # Patch source for RT Linux
+         # wget -O rt.patch.gz https://www.kernel.org/pub/linux/kernel/projects/rt/4.14/older/patch-4.14.18-rt15.patch.gz
+         # zcat rt.patch.gz | patch -p1
+
+         printf "${KBLU}Saving Raspbian source ${KNRM} to ${SavedSourcesPath}/Raspbian.tar.xz ...  Logging to raspbian_compress.log\n"
+
+         # Change directory before tar
+         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+         # I dont know why this is true, but tar fails otherwise
+         set +e
+         tar -cJf "${SavedSourcesPath}/Raspbian.tar.xz" linux  &
+         pid="$!"
+         waitForPid "$pid"
+
+         # Exit immediately if a command exits with a non-zero status
+         set -e
+
+         if [ $rc != 0 ]; then
+            printf "${KRED}Error : [${rc}] ${KNRM} save failed. Check the log for details\n"
+            exit $rc
+         fi
+         printf "${KGRN} done ${KNRM}\n"
+      fi
+   fi
+   
+}
+function installRaspbianFirmwareOntoStretch()
+{
+   blst=3
 }
 
 function installRaspbianFirmware()
@@ -2407,14 +2631,19 @@ function makeRootDevices()
 function installRaspbian()
 {
    updateBrewForEXT2
+   
+   getUSBDevices
+   TargetUSBDevice="${rc}"
+         
+   printf "${KGRN}Using flash device: ${KNRM} /dev/disk${TargetUSBDevice}\n"
 
    createDosBootPVolume
    createRootPVolume
 
    installRaspbianKernel
    installRaspbianFirmware
-   buildNoobsEnvironment
-   makeRootDevices
+   # buildNoobsEnvironment
+   # makeRootDevices
 
 }
 
@@ -2636,6 +2865,8 @@ while getopts "$OPTSTRING" opt; do
           #####################
    esac
 done
+
+
 
 if [ $TestHostCompilerOpt == 'y' ]; then
    testHostCompiler
