@@ -537,7 +537,7 @@ function buildBrewTools()
    printf "${KNRM}set differently that cannot be reset when building Raspbian.\n"
    printf "${KNRM}This is also why there is a seperate Volume for brew to not have to rebuild it .\n"
    $BrewHome/bin/brew install $BrewTools  --build-from-source --with-real-names 
-   printf "${KGRN} done ${KNRM}\n"
+   printf "${KGRN} Install of Brew Tools done ${KNRM}\n"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
@@ -738,9 +738,28 @@ function buildBinutilsForHost()
    printf "${KGRN} done ${KNRM}\n"
 
 }
+function downloadCrossTool()
+{
+   cd /Volumes/${Volume}/src
+   printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${PWD} \n"
+   CrossToolArchive=${CrossToolVersion}.tar.bz2
+   if [ -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
+      printf "   -Using existing archive $CrossToolArchive ${KNRM}\n"
+   else
+      CrossToolUrl="http://crosstool-ng.org/download/crosstool-ng/${CrossToolArchive}"
+      curl -L -o "${SavedSourcesPath}/${CrossToolArchive}" $CrossToolUrl
+   fi
+
+   if [ -d "${CrossToolSourceDir}" ]; then
+      printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
+      printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
+   else
+      tar -xf "${SavedSourcesPath}$CrossToolArchive" -C $CrossToolSourceDir
+   fi
+}
 function downloadCrossTool_LATEST()
 {  
-   cd /Volumes/${VolumeBase}
+   cd /Volumes/${Volume}/src
    printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${PWD} \n"
 
    if [ -d "${CrossToolSourceDir}" ]; then 
@@ -750,7 +769,32 @@ function downloadCrossTool_LATEST()
    fi
 
    CrossToolUrl="https://github.com/crosstool-ng/crosstool-ng.git"
-   git clone ${CrossToolUrl}  ${CrossToolSourceDir}
+   CrossToolArchive=${CrossToolVersion}_latest.tar.xz
+   
+   if [ -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
+      printf "   -Using existing archive $CrossToolArchive ${KNRM}\n"
+      
+      printf "${KBLU}Decompressing ${KNRM} ${CrossToolArchive} ... "
+      
+      tar -xf "${SavedSourcesPath}/$CrossToolArchive" -C $CrossToolSourceDir
+      
+      printf "${KGRN} done ${KNRM}\n"    
+      
+   else
+      git clone ${CrossToolUrl}  ${CrossToolSourceDir}
+   fi
+   
+   if [ ! -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
+      printf "${KBLU}saving ${KNRM} ${CrossToolArchive} ... "
+      
+      tar -cJf "${SavedSourcesPath}/$CrossToolArchive" $CrossToolSourceDir
+      
+      printf "${KGRN} done ${KNRM}\n"
+   fi
+   
+   
+   
+   
 
    # We need to creat the configure tool
    printf "${KBLU}Running  crosstool bootstrap to ${PWD} ${KNRM}\n"
@@ -835,10 +879,9 @@ function patchCrosstool()
       return
     fi
 
-    cd "/Volumes/${VolumeBase}/${CrossToolSourceDir}"
+    cd "/Volumes/${Volume}/src/${CrossToolSourceDir}"
     printf "${KBLU}Patching crosstool-ng in ${PWD} ${KNRM}\n"
 
-    printf "${KBLU}Patching crosstool-ng ${KNRM}\n"
     printf "${KNRM}   -No Patches requires.\n"
     
 # patch required with crosstool-ng-1.17
@@ -854,7 +897,7 @@ function compileCrosstool()
       printf "${KGRN}    - found existing ct-ng. Using it instead ${KNRM}\n"
       return
    fi
-   cd "/Volumes/${VolumeBase}/${CrossToolSourceDir}"
+   cd "/Volumes/${Volume}/src/${CrossToolSourceDir}"
 
 
    # It is strange that gettext is put in opt
@@ -885,7 +928,7 @@ function compileCrosstool()
       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
       exit $rc
    fi
-   printf "${KGRN} done ${KNRM}\n"
+   printf "${KGRN} Configure of crosstool-ng is done ${KNRM}\n"
 
    printf "${KBLU}Compiling crosstool-ng ${KNRM}in ${PWD} ... Logging to /tmp/ctng_build.log\n"
 
@@ -938,7 +981,7 @@ function createCrossCompilerConfigFile()
       printf "${KNRM}Remove it if you wish to start over. \n"
       return
    else
-      printf "${KRED} not found ${KNRM}\n"
+      printf "${KYEL} not found -OK ${KNRM} \n"
    fi
    
 
@@ -987,6 +1030,7 @@ CONFIG_EOF
 
    # It seems ct-ng menuconfig dies without some kind of target
    export CT_TARGET='changeMe'
+   echo $PATH
    ct-ng menuconfig
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
@@ -1011,7 +1055,7 @@ function buildCTNG()
       printf "${KYEL}Remove it if you wish to have it rebuilt ${KNRM}\n"
       return
    else
-      printf "${KGRN} not found -OK ${KNRM}\n"
+      printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KNRM}Continuing with build\n"
    fi
 
@@ -1439,26 +1483,6 @@ function testCrossCompiler()
    else
       printf "${KRED} Boooo ! it failed :-( ${KNRM}\n"
       exit -1
-   fi
-}
-
-function downloadCrossTool()
-{
-   cd /Volumes/${VolumeBase}
-   printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${PWD} \n"
-   CrossToolArchive=${CrossToolVersion}.tar.bz2
-   if [ -f "$CrossToolArchive" ]; then
-      printf "   -Using existing archive $CrossToolArchive ${KNRM}\n"
-   else
-      CrossToolUrl="http://crosstool-ng.org/download/crosstool-ng/${CrossToolArchive}"
-      curl -L -o ${CrossToolArchive} $CrossToolUrl
-   fi
-
-   if [ -d "${CrossToolSourceDir}" ]; then
-      printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
-      printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
-   else
-      tar -xf $CrossToolArchive -C $CrossToolSourceDir
    fi
 }
 
