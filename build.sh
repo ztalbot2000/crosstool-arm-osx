@@ -1663,13 +1663,13 @@ function configureRaspbianKernel()
       printf "${KNRM} to protect previous changes  ${KNRM} \n"
    else
       printf "${KYEL} not found -OK ${KNRM} \n"
-      printf "${KBLU}Make bcm2835_defconfig ${KNRM} in ${PWD}\n"
+      printf "${KBLU}Make bcm2709_defconfig ${KNRM} in ${PWD}\n"
       export CFLAGS="-Wl,-no_pie"
       export LDFLAGS=-Wl,-no_pie
       make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
 
 
-      make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2835_defconfig
+      make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
 
       # Since there is no config file then add the cross compiler
       echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"\n" >> .config
