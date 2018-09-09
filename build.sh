@@ -318,7 +318,7 @@ function ct-ngMakeClean()
    make clean 
    printf "${KGRN} done ${KNRM}\n"
 }
-function raspbianClean()
+function cleanRaspbian()
 {
    printf "${KBLU}Cleaning raspbian (make mrproper) ${KNRM}\n"
 
