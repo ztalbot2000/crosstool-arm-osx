@@ -651,7 +651,6 @@ function buildBinutilsForHost()
    binutilsFile="binutils-2.30.tar.xz"
    binutilsURL="https://mirror.sergal.org/gnu/binutils/${binutilsFile}"
 
-   cd /Volumes/${VolumeBase}
    printf "${KBLU}Checking for a working ld ${KNRM} ... "
    if [ -x "${BrewHome}/bin/ld" ]; then
       printf "${KGRN} found ${KNRM}\n"
@@ -753,7 +752,7 @@ function buildBinutilsForHost()
 }
 function downloadCrossTool()
 {
-   cd /Volumes/${Volume}/src
+   cd "${CT_TOP_DIR}/src"
    printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${PWD} \n"
    CrossToolArchive=${CrossToolVersion}.tar.bz2
    if [ -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
@@ -772,7 +771,7 @@ function downloadCrossTool()
 }
 function downloadCrossTool_LATEST()
 {  
-   cd /Volumes/${Volume}/src
+   cd "${CT_TOP_DIR}/src"
    printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${PWD} \n"
 
    if [ -d "${CrossToolSourceDir}" ]; then 
@@ -789,7 +788,7 @@ function downloadCrossTool_LATEST()
       
       printf "${KBLU}Decompressing ${KNRM} ${CrossToolArchive} ... "
       
-      tar -xf "${SavedSourcesPath}/$CrossToolArchive" -C $CrossToolSourceDir
+      tar -xf "${SavedSourcesPath}/$CrossToolArchive" -C.
       
       printf "${KGRN} done ${KNRM}\n"    
       
@@ -803,11 +802,7 @@ function downloadCrossTool_LATEST()
       tar -cJf "${SavedSourcesPath}/$CrossToolArchive" $CrossToolSourceDir
       
       printf "${KGRN} done ${KNRM}\n"
-   fi
-   
-   
-   
-   
+   fi    
 
    # We need to creat the configure tool
    printf "${KBLU}Running  crosstool bootstrap to ${PWD} ${KNRM}\n"
@@ -892,7 +887,7 @@ function patchCrosstool()
       return
     fi
 
-    cd "/Volumes/${Volume}/src/${CrossToolSourceDir}"
+    cd "${CT_TOP_DIR}/src/${CrossToolSourceDir}"
     printf "${KBLU}Patching crosstool-ng in ${PWD} ${KNRM}\n"
 
     printf "${KNRM}   -No Patches requires.\n"
@@ -910,7 +905,7 @@ function compileCrosstool()
       printf "${KGRN}    - found existing ct-ng. Using it instead ${KNRM}\n"
       return
    fi
-   cd "/Volumes/${Volume}/src/${CrossToolSourceDir}"
+   cd "${CT_TOP_DIR}/src/${CrossToolSourceDir}"
 
 
    # It is strange that gettext is put in opt
@@ -1101,9 +1096,7 @@ function runCTNG()
    createCrossCompilerConfigFile
 
    cd ${CT_TOP_DIR}
-
    
-
    printf "${KBLU}Checking for:${KNRM} ${PWD}/.config ... "
    if [ ! -f '.config' ]; then
       printf "${KRED}ERROR: You have still not created a: ${KNRM}"
