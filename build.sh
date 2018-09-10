@@ -1110,7 +1110,7 @@ function runCTNG()
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
-   export PATH=$PathWithCrossCompiler
+   export PATH=$PathWithBrewTools
 
    if [ "${RunCTNGOptArg}" = 'list-steps' ]; then
       ct-ng "${RunCTNGOptArg}"
@@ -2198,7 +2198,7 @@ function updateVariablesForChangedOptions()
    export HOMEBREW_CACHE=${SavedSourcesPath}
    export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs
    
-   PathWithBrewTools=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:$OriginalPath 
+   PathWithBrewTools=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:$OriginalPath 
    
    PathWithCrossCompiler=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$OriginalPath 
    
