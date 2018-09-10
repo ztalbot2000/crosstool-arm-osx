@@ -1517,7 +1517,8 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
 
    # This is so very important that we must make sure you remember to set the compiler prefix
    # Maybe at a later date this will be automated
-   read -p 'Press any key to continue'
+   # read -p 'Press any key to continue'
+   sleep 5
 
 
    cd "${CT_TOP_DIR}"
@@ -1952,7 +1953,7 @@ function getUSBFlashDeviceForInstallation()
    
    if [[ ${#FoundDeviceNumbers[@]} -eq 1 ]]; then
       printf "${KNRM}Found /dev/disk${FoundDevices[0]} \n"
-      read -p "${KNRM}Is this correct (Y/n) " -r
+      read -p "Is this correct (Y/n) " -r
       if [[ $REPLY =~ ^[Yy]$ ]]; then
          rc=${FoundDevices[0]}
          return
@@ -2206,7 +2207,7 @@ function updateVariablesForChangedOptions()
 function explainExclusion()
 {
    printf "${KRED} You cannot install Raspbian and then install the kernel\n"
-   printf "${KRED} immediately afterwards.the raspbianimage issquashfs and \n"
+   printf "${KRED} immediately afterwards.the raspbian image is squashfs and \n"
    printf "${KRED} to be bbted first to make it ext4 and do its own setup.\n"
    printf "${KRED} If you try to do it anyway afterwards, the extfs mount\n"
    printf "${KRED} will fail.${KNRM}\n"
