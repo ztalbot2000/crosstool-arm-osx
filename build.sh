@@ -1587,6 +1587,11 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
          #            remotes/origin/rpi-4.14.y
          # git clone --depth=1 ${RaspbianURL} 
 
+         # So why no depth? There seems to be an issue with dtbs
+         # not being compiled on OSX because of the option.
+         # Thankfully we save a copy and as this script is
+         # re-enterrit, you can always update the download
+         # with a git fetch
          git clone ${RaspbianURL} 
 
          printf "${KGRN} done ${KNRM}\n"
