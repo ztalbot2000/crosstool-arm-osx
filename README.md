@@ -7,6 +7,7 @@ Status: The cross-compiler, zImage, modules and dtbs now compile.
         Installing compiled latest Raspbian cross compiled kernel works
         The kernel booted for the first time. Yeah!!
         Will start from scratch to reproduce success
+        Wahoo, kernel boots again from previously downloaded sources
 
 Note: The default is now crosstool-ng latest that will be downloaded
       automatially from  GitHub because I believe there is a problems

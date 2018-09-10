@@ -55,7 +55,7 @@ ulimit -n 2048
 # I believe there is a problem with 1.23.0 so for now, this is the default.
 # Ticket #931 has been submitted to address this.
 # It deals with CT_Mirror being undefined
-downloadCrosstoolLatestOpt=y
+downloadCrosstoolLatestOpt='y'
 
 #
 # Config. Update below here to suite your specific needs, but all options can be
@@ -66,7 +66,7 @@ downloadCrosstoolLatestOpt=y
 # It would be copied to $CT_TOP_DIR/.config prior to ct-ng menuconfig
 # It can be overriden with -f <ConfigFile>. Please do this instead of
 # changing it here.
-CrossToolNGConfigFile="armv8-rpi3-linux-gnueabihf.config"
+CrossToolNGConfigFile='armv8-rpi3-linux-gnueabihf.config'
 
 # The starting directory where config files and sparse images will be created
 ThisToolsStartingPath="${PWD}"
