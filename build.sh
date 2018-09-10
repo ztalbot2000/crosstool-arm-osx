@@ -449,6 +449,19 @@ function createCaseSensitiveVolume()
    fi
 
    hdiutil mount "${Volume}.sparseimage"
+   
+}
+
+function createSrcDirForCompilation()
+{
+   # A place to compile from
+   printf "${KBLU}Checking for:${KNRM} ${CT_TOP_DIR}/src ... "
+   if [ ! -d "${CT_TOP_DIR}/src" ]; then
+      mkdir "${CT_TOP_DIR}/src"
+      printf "${KGRN} created ${KNRM}\n"
+   else
+      printf "${KGRN} found ${KNRM}\n"
+   fi
 }
 
 #
@@ -1089,14 +1102,7 @@ function runCTNG()
 
    cd ${CT_TOP_DIR}
 
-   # Allow the source that crosstools-ng downloads to be saved
-   printf "${KBLU}Checking for:${KNRM} ${PWD}/src ... "
-   if [ ! -d 'src' ]; then
-      mkdir 'src'
-      printf "${KGRN} created ${KNRM}\n"
-   else
-      printf "${KGRN} found ${KNRM}\n"
-   fi
+   
 
    printf "${KBLU}Checking for:${KNRM} ${PWD}/.config ... "
    if [ ! -f '.config' ]; then
@@ -2441,6 +2447,8 @@ createTarBallSourcesDir
 # Create the case sensitive volume first.
 createCaseSensitiveVolume
 
+# Create a place for compilations to occur
+createSrcDirForCompilation
 
 # OSX is either missing tools or they are too old.
 # Solve this with putting brew tools in our own build.
