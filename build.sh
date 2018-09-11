@@ -136,6 +136,9 @@ CrossToolSourceDir='crosstool-ng-src'
 CT_TOP_DIR='/Volumes/CrossToolNG'
 CT_TOP_DIR="/Volumes/${Volume}"
 
+# Where compiling various sources will be done from
+COMPILING_LOCATION="${CT_TOP_DIR}/src"
+
 
 # A string to hold options given, to be repeated
 # This will save checking for them each time
@@ -455,9 +458,9 @@ function createCaseSensitiveVolume()
 function createSrcDirForCompilation()
 {
    # A place to compile from
-   printf "${KBLU}Checking for:${KNRM} ${CT_TOP_DIR}/src ... "
-   if [ ! -d "${CT_TOP_DIR}/src" ]; then
-      mkdir "${CT_TOP_DIR}/src"
+   printf "${KBLU}Checking for:${KNRM} ${COMPILING_LOCATION} ... "
+   if [ ! -d "${COMPILING_LOCATION}" ]; then
+      mkdir "${COMPILING_LOCATION}"
       printf "${KGRN} created ${KNRM}\n"
    else
       printf "${KGRN} found ${KNRM}\n"
@@ -491,7 +494,15 @@ BrewTools="coreutils findutils libtool pkg-config pcre grep ncurses gettext xz g
 
 function buildBrewTools()
 {
-   printf "${KBLU}Checking for HomeBrew tools ${KNRM} ...\n"
+   printf "${KBLU}Checking for HomeBrew tools ${KNRM}\n"
+   printf "${KBLU}Checking for our Brew completion flag ${KNRM}  ${BrewHome}.flagBrewComplete ... "
+   if [ -f "${BrewHome}/.flagBrewComplete" ]; then
+      printf "${KGRN} found ${KNRM}\n"
+      printf "${KNRM} Brew will not be updated ${KNRM}\n"
+      return
+   fi
+   printf "${KYEL} not found -OK ${KNRM}\n"
+   
    if [ ! -d "$BrewHome" ]; then
       printf "${KBLU}Installing HomeBrew tools ${KNRM} ...\n"
       mkdir "${BrewHome}"
@@ -505,7 +516,7 @@ function buildBrewTools()
    printf "${KBLU}Checking for Brew log path  ${KNRM} ... "
    if [ ! -d "$HOMEBREW_LOG_PATH" ]; then
       printf "${KYEL} not found -OK ${KNRM}\n"
-      printf "${KNRM}Creating brew logs directory: ${HOMEBREW_LOG_PATH} ... "
+      printf "${KBLU}Creating brew logs directory: ${KNRM} ${HOMEBREW_LOG_PATH} ... "
       mkdir "$HOMEBREW_LOG_PATH"
       printf "${KGRN} done ${KNRM}\n"
 
@@ -538,17 +549,15 @@ function buildBrewTools()
       exit $rc
    fi
    printf "${KGRN} done ${KNRM}\n"
-
+   
 
    # Do not Exit immediately if a command exits with a non-zero status.
    set +e
 
    
+   printf "${KBLU}Installing brew tools. This may take a couple of hours ${KNRM} to ${BrewHome} ... \n"
+
    # --default-names was deprecated
-   printf "${KBLU}Installing brew tools. This may take quite a couple of hours ${KNRM} to ${BrewHome} ... \n"
-   printf "${KNRM}gcc takes the longest and is requires as Apple's gcc has options like pic\n"
-   printf "${KNRM}set differently that cannot be reset when building Raspbian.\n"
-   printf "${KNRM}This is also why there is a seperate Volume for brew to not have to rebuild it .\n"
    $BrewHome/bin/brew install $BrewTools  --build-from-source --with-real-names 
    printf "${KGRN} Install of Brew Tools done ${KNRM}\n"
 
@@ -640,6 +649,9 @@ function buildBrewTools()
       printf "${KYEL}Not found -OK ${KNRM}\n"
    fi
 
+   printf "${KGRN}Creating ${KNRM} ${BrewHome}.flagBrewComplete ... "
+   touch "${BrewHome}/.flagBrewComplete"
+   printf "${KGRN} done ${KNRM}\n"
 
 }
 # Brew binutils does not build ld, so rebuild them again
@@ -647,8 +659,8 @@ function buildBrewTools()
 # to be built.
 function buildBinutilsForHost()
 {
-   binutilsDir="binutils-2.30"
-   binutilsFile="binutils-2.30.tar.xz"
+   binutilsDir='binutils-2.30'
+   binutilsFile='binutils-2.30.tar.xz'
    binutilsURL="https://mirror.sergal.org/gnu/binutils/${binutilsFile}"
 
    printf "${KBLU}Checking for a working ld ${KNRM} ... "
@@ -658,8 +670,8 @@ function buildBinutilsForHost()
    fi
    printf "${KYEL} not found -OK ${KNRM}\n"
 
-   printf "${KBLU}Checking for a existing binutils source ${KNRM} ${CT_TOP_DIR}/src}/${binutilsDir} ... "
-   if [ -d "${CT_TOP_DIR}/src/${binutilsDir}" ]; then
+   printf "${KBLU}Checking for a existing binutils source ${KNRM} ${COMPILING_LOCATION}/${binutilsDir} ... "
+   if [ -d "${COMPILING_LOCATION}/${binutilsDir}" ]; then
       printf "${KGRN} found ${KNRM}\n"
    else
       printf "${KYEL} not found -OK ${KNRM}\n"
@@ -677,10 +689,10 @@ function buildBinutilsForHost()
       # I dont know why this is true, but configure fails otherwise
       set +e
 
-      tar -xzf ${SavedSourcesPath}/${binutilsFile} -C${CT_TOP_DIR}/src > /tmp/binutils_extract.log 2>&1 &
+      tar -xzf ${SavedSourcesPath}/${binutilsFile} -C${COMPILING_LOCATION} > /tmp/binutils_extract.log 2>&1 &
       pid="$!"
 
-      waitForPid "$pid"
+      waitForPid "${pid}"
 
       # Exit immediately if a command exits with a non-zero status
       set -e
@@ -697,12 +709,12 @@ function buildBinutilsForHost()
    # I dont know why this is true, but configure fails otherwise
    set +e
 
-   cd "${CT_TOP_DIR}/src/${binutilsDir}"
+   cd "${COMPILING_LOCATION}/${binutilsDir}"
    
    EPREFIX='' ./configure --prefix=${BrewHome} --enable-ld=yes --target=x86_64-unknown-elf --disable-werror --enable-multilib --program-prefix='' > /tmp/binutils_configure.log 2>&1 &
    pid="$!"
 
-   waitForPid "$pid"
+   waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
@@ -738,7 +750,7 @@ function buildBinutilsForHost()
 
    make install > /tmp/binutils_install.log 2>&1 &
    pid="$!"
-   waitForPid "$pid"
+   waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
@@ -750,31 +762,32 @@ function buildBinutilsForHost()
    printf "${KGRN} done ${KNRM}\n"
 
 }
+
 function downloadCrossTool()
 {
-   cd "${CT_TOP_DIR}/src"
-   printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${PWD} \n"
+   printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${COMPILING_LOCATION} \n"
    CrossToolArchive=${CrossToolVersion}.tar.bz2
    if [ -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
-      printf "   -Using existing archive $CrossToolArchive ${KNRM}\n"
+      printf "   -Using existing archive ${CrossToolArchive} ${KNRM}\n"
    else
       CrossToolUrl="http://crosstool-ng.org/download/crosstool-ng/${CrossToolArchive}"
       curl -L -o "${SavedSourcesPath}/${CrossToolArchive}" $CrossToolUrl
    fi
 
-   if [ -d "${CrossToolSourceDir}" ]; then
-      printf "   ${KRED}WARNING${KNRM} - ${CT_TOP_DIR} exists and will be used.\n"
+   if [ -d "${COMPILING_LOCATION}/${CrossToolSourceDir}" ]; then
+      printf "   ${KRED}WARNING${KNRM} - ${CrossToolSourceDir} exists and will be used.\n"
       printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
    else
-      tar -xf "${SavedSourcesPath}$CrossToolArchive" -C $CrossToolSourceDir
+      tar -xf "${SavedSourcesPath}/$CrossToolArchive" \
+         -C "${COMPILING_LOCATION}/${CrossToolSourceDir}"
    fi
 }
 function downloadCrossTool_LATEST()
 {  
-   cd "${CT_TOP_DIR}/src"
-   printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${PWD} \n"
+   cd "${COMPILING_LOCATION}"
+   printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${COMPILING_LOCATION} \n"
 
-   if [ -d "${CrossToolSourceDir}" ]; then 
+   if [ -d "${COMPILING_LOCATION}/${CrossToolSourceDir}" ]; then 
       printf "   ${KRED}WARNING${KNRM} - ${CrossToolSourceDir} exists and will be used.\n"
       printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
       return
@@ -788,25 +801,26 @@ function downloadCrossTool_LATEST()
       
       printf "${KBLU}Decompressing ${KNRM} ${CrossToolArchive} ... "
       
-      tar -xf "${SavedSourcesPath}/$CrossToolArchive" -C.
+      tar -xf "${SavedSourcesPath}/$CrossToolArchive" -C "${COMPILING_LOCATION}"
       
       printf "${KGRN} done ${KNRM}\n"    
       
    else
-      git clone ${CrossToolUrl}  ${CrossToolSourceDir}
+      git clone ${CrossToolUrl}  "${COMPILING_LOCATION}/${CrossToolSourceDir}"
    fi
    
    if [ ! -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
       printf "${KBLU}saving ${KNRM} ${CrossToolArchive} ... "
       
-      tar -cJf "${SavedSourcesPath}/$CrossToolArchive" $CrossToolSourceDir
+      tar -cJf "${SavedSourcesPath}/$CrossToolArchive" \
+         "${COMPILING_LOCATION}/${CrossToolSourceDir}"
       
       printf "${KGRN} done ${KNRM}\n"
    fi    
 
    # We need to creat the configure tool
-   printf "${KBLU}Running  crosstool bootstrap to ${PWD} ${KNRM}\n"
-   cd "${CrossToolSourceDir}"
+   printf "${KBLU}Running  crosstool bootstrap in ${KNRM} ${COMPILING_LOCATION} \n"
+   cd "${COMPILING_LOCATION}/${CrossToolSourceDir}"
 
    # crosstool-ng-1.23.0 still has CT_Mirror
    # git checkout -b $CrossToolVersion
@@ -816,14 +830,14 @@ function downloadCrossTool_LATEST()
 
 function patchConfigFileForVolume()
 {
-    printf "${KBLU}Patching .config file for -V option ${KNRM} in ${PWD} ... "
+    printf "${KBLU}Patching .config file for -V option ${KNRM} in ${COMPILING_LOCATION} ... "
 
     if [ "${VolumeOpt}" = 'y' ]; then
        printf "${KGRN} required ${KNRM}\n"
        printf "${KBLU}Changing /Volumes/CrossToolNG ${KNRM} to /Volumes/${Volume} ... "
 
-       if [ -f '.config' ]; then
-          sed -i.bak -e's/CrossToolNG/'$Volume'/g' .config
+       if [ -f "${COMPILING_LOCATION}/.config" ]; then
+          sed -i.bak -e's/CrossToolNG/'$Volume'/g' "${COMPILING_LOCATION}/.config"
           printf "${KGRN} done ${KNRM}\n"
        else
            printf "${KRED} not found ${KNRM}\n"
@@ -838,13 +852,13 @@ function patchConfigFileForVolume()
 
 function patchConfigFileForOutputDir()
 {
-    printf "${KBLU}Patching .config file for -O option ${KNRM} in ${PWD} ... "
+    printf "${KBLU}Patching .config file for -O option ${KNRM} in ${COMPILING_LOCATION} ... "
      
     if [ "${OutputDirOpt}" = 'y' ]; then
        printf "${KGRN} required ${KNRM}\n"
        printf "${KBLU}Changing x-tools ${KNRM} to ${OutputDir} ... "
-       if [ -f ".config" ]; then
-           sed -i.bak2 -e's/x-tools/'$OutputDir'/g' .config
+       if [ -f "${COMPILING_LOCATION}/.config" ]; then
+           sed -i.bak2 -e's/x-tools/'$OutputDir'/g' "${COMPILING_LOCATION}/.config"
            printf "${KGRN} done ${KNRM}\n"
        else
            printf "${KRED} not found ${KNRM}\n"
@@ -860,18 +874,19 @@ function patchConfigFileForOutputDir()
 
 function patchConfigFileForSavedSourcesPath()
 {
-    printf "${KBLU}Patching .config file for -S ootion ${KNRM} in ${PWD} ... "
+    printf "${KBLU}Patching .config file for -S ootion ${KNRM} in ${COMPILING_LOCATION} ... "
     if [ "${SavedSourcesPathOpt}" = 'y' ]; then
        printf "${KGRN} required ${KNRM}\n"
        printf "${KBLU}Changing ${CT_TOP_DIR}/sources ${KNRM} to ${SavedSourcesPath} ... "
-       if [ -f '.config' ]; then
+       if [ -f "${COMPILING_LOCATION}/.config" ]; then
           # Since a path may have a slash, use a  pound sign as a delimeter
-          sed -i.bak3 -e's#CT_LOCAL_TARBALLS_DIR="/Volumes/'$VolumeBase'/sources"#CT_LOCAL_TARBALLS_DIR="'$SavedSourcesPath'"#g' .config
-           printf "${KGRN} done ${KNRM}\n"
+          sed -i.bak3 -e's#CT_LOCAL_TARBALLS_DIR="/Volumes/'$VolumeBase'/sources"#CT_LOCAL_TARBALLS_DIR="'$SavedSourcesPath'"#g' "${COMPILING_LOCATION}/.config" 
+          
+          printf "${KGRN} done ${KNRM}\n"
        else
-           printf "${KRED} not found ${KNRM}\n"
-           printf "${KRED} aborting ${KNRM}\n"
-           exit -1
+          printf "${KRED} not found ${KNRM}\n"
+          printf "${KRED} aborting ${KNRM}\n"
+          exit -1
        fi
     else
        printf "${KYEL} not specified. not required ${KNRM}\n"
@@ -887,7 +902,7 @@ function patchCrosstool()
       return
     fi
 
-    cd "${CT_TOP_DIR}/src/${CrossToolSourceDir}"
+    cd "${COMPILING_LOCATION}/${CrossToolSourceDir}"
     printf "${KBLU}Patching crosstool-ng in ${PWD} ${KNRM}\n"
 
     printf "${KNRM}   -No Patches requires.\n"
@@ -905,7 +920,7 @@ function compileCrosstool()
       printf "${KGRN}    - found existing ct-ng. Using it instead ${KNRM}\n"
       return
    fi
-   cd "${CT_TOP_DIR}/src/${CrossToolSourceDir}"
+   cd "${COMPILING_LOCATION}/${CrossToolSourceDir}"
 
 
    # It is strange that gettext is put in opt
@@ -927,7 +942,7 @@ function compileCrosstool()
                --prefix="/Volumes/${VolumeBase}/ctng" \
    > /tmp/ct-ng_config.log 2>&1 &
    pid="$!"
-   waitForPid "$pid"
+   waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
@@ -963,7 +978,7 @@ function compileCrosstool()
 
    make install > /tmp/ctng_install.log 2>&1 &
    pid="$!"
-   waitForPid "$pid"
+   waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
@@ -979,11 +994,11 @@ function createCrossCompilerConfigFile()
 {
 
 
-   cd ${CT_TOP_DIR}
+   cd ${COMPILING_LOCATION}
 
 
-   printf "${KBLU}Checking for ct-ng config file ${KNRM}${CT_TOP_DIR}/.config ... "
-   if [ -f  "${CT_TOP_DIR}/.config" ]; then
+   printf "${KBLU}Checking for ct-ng config file ${KNRM}${COMPILING_LOCATION}/.config ... "
+   if [ -f  "${COMPILING_LOCATION}/.config" ]; then
       printf "${KGRN} found ${KNRM}\n"
       printf "${KYEL}Using existing .config file. ${KNRM}\n"
       printf "${KNRM}Remove it if you wish to start over. \n"
@@ -996,9 +1011,9 @@ function createCrossCompilerConfigFile()
    printf "${KBLU}Checking for an existing toolchain config file: ${KNRM} ${ThisToolsStartingPath}/${CrossToolNGConfigFile} ... \n"
    if [ -f "${ThisToolsStartingPath}/${CrossToolNGConfigFile}" ]; then
       printf "${KNRM}   - Using ${ThisToolsStartingPath}/${CrossToolNGConfigFile} \n"
-      cp "${ThisToolsStartingPath}/${CrossToolNGConfigFile}"  "${CT_TOP_DIR}/.config"
+      cp "${ThisToolsStartingPath}/${CrossToolNGConfigFile}"  "${COMPILING_LOCATION}/.config"
 
-      cd "${CT_TOP_DIR}"
+      cd "${COMPILING_LOCATION}"
       
       patchConfigFileForVolume
       
@@ -1043,15 +1058,7 @@ CONFIG_EOF
 
    printf "${KBLU}Once your finished tinkering with ct-ng menuconfig${KNRM}\n"
    printf "${KBLU}to contineu the build${KNRM}\n"
-   printf "${KBLU}Execute:${KNRM} ./build.sh ${CmdOptionString} -b ${KNRM}"
-   if [ $Volume != 'CrossToolNG' ]; then
-      printf "${KNRM} -V ${Volume}${KNRM}"
-   fi
-   if [ $OutputDir != 'x-tools' ]; then
-      printf "${KNRM} -O ${OutputDir}${KNRM}"
-   fi
-   printf "\n"
-   
+   printf "${KBLU}Execute:${KNRM} ./build.sh ${CmdOptionString} -b \n"   
 
 }
 
@@ -1095,15 +1102,15 @@ function runCTNG()
 
    createCrossCompilerConfigFile
 
-   cd ${CT_TOP_DIR}
+   cd ${COMPILING_LOCATION}
    
-   printf "${KBLU}Checking for:${KNRM} ${PWD}/.config ... "
-   if [ ! -f '.config' ]; then
+   printf "${KBLU}Checking for:${KNRM} ${COMPILING_LOCATION}/.config ... "
+   if [ ! -f "${COMPILING_LOCATION}/.config" ]; then
       printf "${KRED}ERROR: You have still not created a: ${KNRM}"
-      printf "${PWD}/.config file. ${KNRM}\n"
-      printf "${KNRM}Change directory to ${CT_TOP_DIR}${KNRM}\n"
-      printf "${KNRM}And run: ./ct-ng menuconfig ${KNRM}\n"
-      printf "${KNRM}Before continuing with the build. ${KNRM}\n"
+      printf "${COMPILING_LOCATION}/.config file. ${KNRM}\n"
+      printf "${KNRM}Change directory to ${COMPILING_LOCATION}\n"
+      printf "${KNRM}And run: ./ct-ng menuconfig \n"
+      printf "${KNRM}Before continuing with the build. \n"
 
       exit -1
    else
@@ -1129,7 +1136,7 @@ function runCTNG()
 
 function buildLibtool()
 {   
-    cd "${CT_TOP_DIR}/src/libelf"
+    cd "${COMPILING_LOCATION}/libelf"
     # ./configure --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}
     ./configure  -prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}  --host=${ToolchainName}
     make
@@ -1149,12 +1156,12 @@ function downloadAndBuildzlibForTarget()
    printf "${KYEL} not found -OK ${KNRM}\n"
 
    printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/zlib-1.2.11 ... "
-   if [ -d "${CT_TOP_DIR}/src/zlib-1.2.11" ]; then
+   if [ -d "${COMPILING_LOCATION}/zlib-1.2.11" ]; then
       printf "${KGRN} found ${KNRM}\n"
       printf "${KNRM} Using existing zlib source ${KNRM}\n"
    else
       printf "${KYEL} not found -OK ${KNRM}\n"
-      cd "${CT_TOP_DIR}/src/"
+      cd "${COMPILING_LOCATION}"
       printf "${KBLU}Checking for saved ${KNRM}${zlibFile} ... "
       if [ -f "${SavedSourcesPath}/${zlibFile}" ]; then
          printf "${KGRN} found ${KNRM}\n"
@@ -1165,12 +1172,12 @@ function downloadAndBuildzlibForTarget()
          printf "${KGRN} done ${KNRM}\n"
       fi
       printf "${KBLU}Decompressing ${KNRM} ${zlibFile} ... "
-      tar -xzf ${SavedSourcesPath}/${zlibFile} -C${CT_TOP_DIR}/src
+      tar -xzf ${SavedSourcesPath}/${zlibFile} -C "${COMPILING_LOCATION}"
       printf "${KGRN} done ${KNRM}\n"
    fi
 
     printf "${KBLU} Configuring zlib ${KNRM} Logging to /tmp/zlib_config.log \n"
-    cd "${CT_TOP_DIR}/src/zlib-1.2.11"
+    cd "${COMPILING_LOCATION}/zlib-1.2.11"
 
     # I dont know why this is true, but configure fails otherwise
     set +e
@@ -1183,7 +1190,7 @@ function downloadAndBuildzlibForTarget()
     > /tmp/zlib_config.log 2>&1 &
 
     pid="$!"
-    waitForPid "$pid"
+    waitForPid "${pid}"
 
     # Exit immediately if a command exits with a non-zero status
     set -e
@@ -1237,7 +1244,7 @@ function downloadElfLibrary()
 {
 elfLibURL='https://github.com/WolfgangSt/libelf.git'
 
-   cd "${CT_TOP_DIR}/src"
+   cd "${COMPILING_LOCATION}"
    printf "${KBLU}Downloading libelf latest ${KNRM} to ${PWD}\n"
 
    if [ -d 'libelf' ]; then
@@ -1520,7 +1527,7 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
    sleep 5
 
 
-   cd "${CT_TOP_DIR}"
+   cd "${COMPILING_LOCATION}"
    printf "${KBLU}Downloading Raspbian Kernel latest ${KNRM} \n"
 
    
@@ -1534,14 +1541,14 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
       printf "${KGRN} found ${KNRM}\n"
    fi
 
-   cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+   cd "${COMPILING_LOCATION}/${RaspbianSrcDir}"
 
    printf "${KBLU}Checking for ${KNRM} ${RaspbianSrcDir}/linux ... "
-   if [ -d "${CT_TOP_DIR}/${RaspbianSrcDir}/linux" ]; then
-      cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
+   if [ -d "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux" ]; then
+      cd "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux"
       printf "${KGRN} found ${KNRM}\n"
       printf "${KRED}WARNING ${KNRM}Path already exists ${RaspbianSrcDir} ${KNRM}\n"
-      cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
+      cd "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux"
       
    else
       printf "${KYEL} not found -OK ${KNRM}\n"
@@ -1549,7 +1556,7 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
       if [ -f "${SavedSourcesPath}/Raspbian.tar.xz" ]; then
          printf "${KGRN} found ${KNRM}\n"
 
-         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+         cd "${COMPILING_LOCATION}/${RaspbianSrcDir}"
          printf "${KBLU}Extracting saved ${KNRM} ${SavedSourcesPath}/Raspbian.tar.xz ... Logging to /tmp/Raspbian_extract.log\n"
 
          # I dont know why this is true, but tar fails otherwise
@@ -1574,7 +1581,7 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
          printf "${KBLU}Cloning Raspbian from git ${KNRM} \n"
          printf "${KBLU}This will take a while, but a copy will ${KNRM} \n"
          printf "${KBLU}be saved for the future. ${KNRM} \n"
-         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+         cd "${COMPILING_LOCATION}/${RaspbianSrcDir}"
 
          # results in git branch ->
          #            4.14.y
@@ -1609,7 +1616,7 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
          printf "${KBLU}Saving Raspbian source ${KNRM} to ${SavedSourcesPath}/Raspbian.tar.xz ...  Logging to raspbian_compress.log\n"
 
          # Change directory before tar
-         cd "${CT_TOP_DIR}/${RaspbianSrcDir}"
+         cd "${COMPILING_LOCATION}/${RaspbianSrcDir}"
          # I dont know why this is true, but tar fails otherwise
          set +e
          tar -cJf "${SavedSourcesPath}/Raspbian.tar.xz" linux  &
@@ -1674,7 +1681,7 @@ function cleanupElfHeaderForOSX()
 
 function configureRaspbianKernel()
 {
-   cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
+   cd "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel ${KNRM} in ${PWD}\n"
 
    export PATH=$PathWithCrossCompiler
@@ -1764,7 +1771,7 @@ function installRaspbianKernelToBootVolume()
    BootPath="/Volumes/boot"  
    printf "${KBLU}Installing Cross Compiled Raspbian Kernel ${KNRM}\n"
    printf "${KBLU}Checking for Raspbian source ${KNRM} ..."
-   if [ ! -d "${CT_TOP_DIR}/${RaspbianSrcDir}/linux" ]; then
+   if [ ! -d "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux" ]; then
       printf "${KRED} not found ${KNRM}\n"
       printf "${KNRM} You must first successfully execute: ./biuld.sh ${CmdOptionString} -b Raspbian ${KNRM}\n"
       exit -1
@@ -1781,8 +1788,8 @@ function installRaspbianKernelToBootVolume()
       printf "${KGRN} found ${KNRM}\n"
    fi
 
-   printf "${KBLU}Checking for ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${KNRM} ..."
-   if [ ! -f "${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage" ]; then
+   printf "${KBLU}Checking for ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${KNRM} ..."
+   if [ ! -f "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage" ]; then
       printf "${KRED} not found ${KNRM}\n"
       exit -1
    fi
@@ -1790,16 +1797,16 @@ function installRaspbianKernelToBootVolume()
 
 
    printf "${KBLU}Copying Raspbian file ${KNRM} *.dtb to ${BootPath} ... "
-   cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/*.dtb ${BootPath}/
+   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/*.dtb ${BootPath}/
    printf "${KGRN} done ${KNRM}\n"
    printf "${KBLU}Copying Raspbian file ${KNRM} overlays/*.dtb* to ${BootPath} ... "
-   cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/*.dtb* ${BootPath}/overlays/
+   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/*.dtb* ${BootPath}/overlays/
    printf "${KGRN} done ${KNRM}\n"
    printf "${KBLU}Copying Raspbian file ${KNRM} overlays/README to ${BootPath} ... "
-   cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/README ${BootPath}/overlays/
+   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/README ${BootPath}/overlays/
    printf "${KGRN} done ${KNRM}\n"
    printf "${KBLU}Copying Raspbian file ${KNRM} zImage to ${BootPath} ... "
-   cp ${CT_TOP_DIR}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${BootPath}/kernel7.img
+   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${BootPath}/kernel7.img
    printf "${KGRN} done ${KNRM}\n"
 }
 
@@ -2197,7 +2204,9 @@ function updateVariablesForChangedOptions()
    fi
    BrewHome="/Volumes/${VolumeBase}/brew"
    CT_TOP_DIR="/Volumes/${Volume}"
-
+   
+   COMPILING_LOCATION="${CT_TOP_DIR}/src"   
+   
    export BREW_PREFIX=$BrewHome
    export PKG_CONFIG_PATH=$BREW_PREFIX
    export HOMEBREW_CACHE=${SavedSourcesPath}
