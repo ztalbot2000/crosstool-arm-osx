@@ -136,6 +136,9 @@ CrossToolSourceDir='crosstool-ng-src'
 CT_TOP_DIR='/Volumes/CrossToolNG'
 CT_TOP_DIR="/Volumes/${Volume}"
 
+# The   resultant cross compiler goes in the Base
+CT_TOP_DIR_BASE="/Volumes/${VolumeBase}"
+
 # Where compiling various sources will be done from
 COMPILING_LOCATION="${CT_TOP_DIR}/src"
 
@@ -197,9 +200,9 @@ cat <<'HELP_EOF'
                            Note: To do this the .config file is changed automatically
                                  from CrosstoolNG to <Volume>
 
-     -O <OutputDir>  - Instead of /Volumes/<Volume>/x-tools
+     -O <OutputDir>  - Instead of /Volumes/<Volume>Base/x-tools
                                use
-                           /Volumes/<Volume>/<OutputDir>
+                           /Volumes/<Volume>Base/<OutputDir>
                            Note: To do this the .config file is changed automatically
                                  from x-tools  to <OutputDir>
      -T <Toolchain>  - The ToolchainName created.
@@ -309,7 +312,7 @@ function cleanBrew()
 function ct-ngMakeClean()
 {
    printf "${KBLU}Cleaning ct-ng${KNRM} ...\n"
-   ctDir="/Volumes/${VolumeBase}/${CrossToolSourceDir}"
+   ctDir="${CT_TOP_DIR_BASE}/${CrossToolSourceDir}"
    printf "Checking for ${KNRM}${ctDir} ... "
    if [ -d "${ctDir}" ]; then
       printf "${KGRN} found ${KNRM}\n"
@@ -352,16 +355,16 @@ function realClean()
 
    # Eject the disk instead of unmounting it or you will have
    # a lot of disks hanging around.  I had 47, Doh!
-   if [ -d  "/Volumes/${VolumeBase}" ]; then 
-      printf "${KBLU}Ejecting  /Volumes/${VolumeBase} ${KNRM}\n"
-      hdiutil eject /Volumes/${VolumeBase}
+   if [ -d  "${CT_TOP_DIR_BASE}" ]; then 
+      printf "${KBLU}Ejecting ${CT_TOP_DIR_BASE} ${KNRM}\n"
+      hdiutil eject ${CT_TOP_DIR_BASE}
    fi
 
    # Eject the disk instead of unmounting it or you will have
    # a lot of disks hanging around.  I had 47, Doh!
-   if [ -d  "/Volumes/${Volume}" ]; then 
-      printf "${KBLU}Ejecting  /Volumes/${Volume} ${KNRM}\n"
-      hdiutil eject /Volumes/${Volume}
+   if [ -d  "${CT_TOP_DIR}" ]; then 
+      printf "${KBLU}Ejecting  ${CT_TOP_DIR} ${KNRM}\n"
+      hdiutil eject ${CT_TOP_DIR}
    fi
 
 
@@ -375,10 +378,9 @@ function realClean()
 # For smaller more permanent stuff
 function createCaseSensitiveVolumeBase()
 {
-    VolumeDir="/Volumes/${VolumeBase}"
-    printf "${KBLU}Creating 4G volume for tools mounted as ${VolumeDir}${KNRM} ...\n"
-    if [  -d "${VolumeDir}" ]; then
-       printf "${KYEL}WARNING${KNRM}: Volume already exists: ${VolumeDir}${KNRM}\n"
+   printf "${KBLU}Creating 4G volume for tools mounted as ${CT_TOP_DIR_BASE} ${KNRM} ...\n"
+    if [  -d "${CT_TOP_DIR_BASE}" ]; then
+       printf "${KYEL}WARNING${KNRM}: Volume already exists: ${CT_TOP_DIR_BASE} ${KNRM}\n"
       
        return;
     fi
@@ -784,6 +786,8 @@ function downloadCrossTool()
 }
 function downloadCrossTool_LATEST()
 {  
+   export PATH=$PathWithBrewTools
+   
    cd "${COMPILING_LOCATION}"
    printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${COMPILING_LOCATION} \n"
 
@@ -897,7 +901,7 @@ function patchConfigFileForSavedSourcesPath()
 function patchCrosstool()
 {
     printf "${KBLU}Patching crosstool-ng ${KNRM}\n"
-    if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
+    if [ -x "${CT_TOP_DIR_BASE}/ctng/bin/ct-ng" ]; then
       printf "${KYEL}    - found existing ct-ng. Using it instead ${KNRM}\n"
       return
     fi
@@ -916,10 +920,13 @@ function patchCrosstool()
 function compileCrosstool()
 {
    printf "${KBLU}Configuring crosstool-ng ${KNRM} in ${PWD} \n"
-   if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
+   if [ -x "${CT_TOP_DIR_BASE}/ctng/bin/ct-ng" ]; then
       printf "${KGRN}    - found existing ct-ng. Using it instead ${KNRM}\n"
       return
    fi
+   
+   export PATH=$PathWithBrewTools
+   
    cd "${COMPILING_LOCATION}/${CrossToolSourceDir}"
 
 
@@ -939,7 +946,7 @@ function compileCrosstool()
    LDFLAGS="  -L${BrewHome}/opt/gettext/lib -lintl " \
    CPPFLAGS=" -I${BrewHome}/opt/gettext/include" \
    ./configure --with-libintl-prefix=$gettextDir \
-               --prefix="/Volumes/${VolumeBase}/ctng" \
+               --prefix="${CT_TOP_DIR_BASE}/ctng" \
    > /tmp/ct-ng_config.log 2>&1 &
    pid="$!"
    waitForPid "${pid}"
@@ -971,7 +978,7 @@ function compileCrosstool()
    fi
    printf "${KGRN} done ${KNRM}\n"
 
-   printf "${KBLU}Installing  crosstool-ng ${KNRM}in /Volumes/${VolumeBase}/ctng ... Logging to /tmp/ctng_install.log\n"
+   printf "${KBLU}Installing  crosstool-ng ${KNRM}in ${CT_TOP_DIR_BASE}/ctng ... Logging to /tmp/ctng_install.log\n"
 
    # I dont know why this is true, but make fails otherwise
    set +e
@@ -1032,7 +1039,7 @@ https://gist.github.com/h0tw1r3/19e48ae3021122c2a2ebe691d920a9ca
 
 - Paths and misc options
     - Set "Prefix directory" to the real values of:
-        /Volumes/$Volume/$OutputDir/${CT_TARGET}
+        /Volumes/$VolumeBase/$OutputDir/${CT_TARGET}
 
 - Target options
     By default this script builds the configuration for armv8-rpi3-linux-gnueabihf as this is my focus; However, crosstool-ng can build so many different types of cross compilers.  If you are interested in them, check out the samples with:
@@ -1064,8 +1071,8 @@ CONFIG_EOF
 
 function buildCTNG()
 {
-   printf "${KBLU}Checking for an existing ct-ng ${KNRM} /Volumes/${VolumeBase}/ctng/bin/ct-ng ... "
-   if [ -x "/Volumes/${VolumeBase}/ctng/bin/ct-ng" ]; then
+   printf "${KBLU}Checking for an existing ct-ng ${KNRM} ${CT_TOP_DIR_BASE}/ctng/bin/ct-ng ... "
+   if [ -x "${CT_TOP_DIR_BASE}/ctng/bin/ct-ng" ]; then
       printf "${KGRN} found ${KNRM}\n"
       printf "${KYEL}Remove it if you wish to have it rebuilt ${KNRM}\n"
       return
@@ -1137,8 +1144,8 @@ function runCTNG()
 function buildLibtool()
 {   
     cd "${COMPILING_LOCATION}/libelf"
-    # ./configure --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}
-    ./configure  -prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}  --host=${ToolchainName}
+    # ./configure --prefix=${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}
+    ./configure  -prefix=${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}  --host=${ToolchainName}
     make
     make install
 }
@@ -1149,13 +1156,13 @@ function downloadAndBuildzlibForTarget()
    zlibURL="https://zlib.net/${zlibFile}"
 
    printf "${KBLU}Checking for Cross Compiled ${KNRM}zlib.h and libz.a ... "
-   if [ -f "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/zlib.h" ] && [ -f  "${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
+   if [ -f "${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/zlib.h" ] && [ -f  "${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
       printf "${KGRN} found ${KNRM}\n"
       return
    fi
    printf "${KYEL} not found -OK ${KNRM}\n"
 
-   printf "${KBLU}Checking for ${KNRM}${CT_TOP_DIR}/src/zlib-1.2.11 ... "
+   printf "${KBLU}Checking for ${KNRM}${COMPILING_LOCATION}/zlib-1.2.11 ... "
    if [ -d "${COMPILING_LOCATION}/zlib-1.2.11" ]; then
       printf "${KGRN} found ${KNRM}\n"
       printf "${KNRM} Using existing zlib source ${KNRM}\n"
@@ -1183,10 +1190,10 @@ function downloadAndBuildzlibForTarget()
     set +e
     
     CHOST=${ToolchainName} ./configure \
-          --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \
+          --prefix="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}" \
           --static \
-          --libdir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib \
-          --includedir=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/${ToolchainName}/include \
+          --libdir="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib" \
+          --includedir="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/include" \
     > /tmp/zlib_config.log 2>&1 &
 
     pid="$!"
@@ -1261,7 +1268,9 @@ elfLibURL='https://github.com/WolfgangSt/libelf.git'
 
 function testBuild()
 {
-   gpp="${CT_TOP_DIR}/$OutputDir/$ToolchainName/bin/${ToolchainName}-g++"
+   export PATH=$PathWithCrossCompiler
+   
+   gpp="${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/bin/${ToolchainName}-g++"
    if [ ! -f "${gpp}" ]; then
       printf "${KYEL}No executable compiler found. ${KNRM} ${gpp} \n"
       rc='-1'
@@ -1279,7 +1288,6 @@ int main ()
 }
 HELLO_WORLD_EOF
 
-   PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$PATH
 
    ${ToolchainName}-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
    rc=$?
@@ -1690,7 +1698,7 @@ function configureRaspbianKernel()
    # for bzImage
    export KERNEL=kernel7
 
-   export CROSS_PREFIX=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-
+   export CROSS_PREFIX="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-"
 
    printf "${KBLU}Checkingo for an existing linux/.config file ${KNRM} ... "
    if [ -f .config ]; then
@@ -1705,7 +1713,7 @@ function configureRaspbianKernel()
       make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
 
 
-      make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include  bcm2709_defconfig
+      make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir="${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/$ToolchainName/include"  bcm2709_defconfig
 
       # Since there is no config file then add the cross compiler
       echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"\n" >> .config
@@ -1719,30 +1727,30 @@ function configureRaspbianKernel()
 
    printf "${KBLU}Make zImage in ${PWD}${KNRM}\n"
 
-   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
+   KBUILD_CFLAGS=-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
-        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/include \
+        --include-dir=${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/$ToolchainName/include \
         zImage 
 
    printf "${KBLU}Make modules in ${PWD}${KNRM}\n"
-   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
+   KBUILD_CFLAGS=-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
-        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/$ToolchainName/sysroot/usr/include \
+        --include-dir=${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/$ToolchainName/sysroot/usr/include \
         modules
 
    printf "${KBLU}Make dtbs in ${PWD}${KNRM}\n"
-   KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
+   KBUILD_CFLAGS=-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
+   KBUILD_LDLAGS=-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
    ARCH=arm \
       make  -j4 CROSS_COMPILE=${ToolchainName}- \
         CC=${ToolchainName}-gcc \
-        --include-dir=${CT_TOP_DIR}/$OutputDir/$ToolchainName/$ToolchainName/$ToolchainName/sysroot/usr/include \
+        --include-dir=${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/$ToolchainName/sysroot/usr/include \
         dtbs
 
    # Only thing changed were
@@ -2204,6 +2212,7 @@ function updateVariablesForChangedOptions()
    fi
    BrewHome="/Volumes/${VolumeBase}/brew"
    CT_TOP_DIR="/Volumes/${Volume}"
+   CT_TOP_DIR_BASE="/Volumes/${VolumeBase}"
    
    COMPILING_LOCATION="${CT_TOP_DIR}/src"   
    
@@ -2214,7 +2223,7 @@ function updateVariablesForChangedOptions()
    
    PathWithBrewTools=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:$OriginalPath 
    
-   PathWithCrossCompiler=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$OriginalPath 
+   PathWithCrossCompiler=${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$OriginalPath 
    
 }
 function explainExclusion()
@@ -2240,13 +2249,13 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       P)
-          export PATH=${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH
+          export PATH=${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH
   
           printf "${KNRM}PATH=${PATH} \n"
-          printf "${KNRM}KBUILD_CFLAGS=-I${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \n"
-          printf "${KNRM}KBUILD_LDLAGS=-L${CT_TOP_DIR}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \n"
-          printf "./configure  ARCH=arm  CROSS_COMPILE=${ToolchainName}- --prefix=${CT_TOP_DIR}/${OutputDir}/${ToolchainName} \n"
-          printf "make ARCH=arm --include-dir=${CT_TOP_DIR}/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${ToolchainName}-\n"
+          printf "${KNRM}KBUILD_CFLAGS=-I${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \n"
+          printf "${KNRM}KBUILD_LDLAGS=-L${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \n"
+          printf "./configure  ARCH=arm  CROSS_COMPILE=${ToolchainName}- --prefix=${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName} \n"
+          printf "make ARCH=arm --include-dir=${CT_TOP_DIR}Base/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${ToolchainName}-\n"
           exit 0
           ;;
           #####################
