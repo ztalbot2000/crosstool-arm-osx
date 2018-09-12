@@ -115,13 +115,13 @@ TargetUSBDevice=''
 # that did not behave as good as brew.
 # 
 BrewHome="/Volumes/${VolumeBase}/brew"
-export HOMEBREW_CACHE=${SavedSourcesPath}
+export HOMEBREW_CACHE="${SavedSourcesPath}"
 # Never found anything there, but was recommnded when setting HOMEBREW_CACHE
-export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs 
+export HOMEBREW_LOG_PATH="${BrewHome}/brew_logs"
 
 # This is required so brew can be installed elsewhere
-export BREW_PREFIX=$BrewHome
-export PKG_CONFIG_PATH=$BREW_PREFIX
+export BREW_PREFIX="${BrewHome}"
+export PKG_CONFIG_PATH="${BREW_PREFIX}"
 
 # This is the crosstools-ng version used by curl to fetch relased version
 # of crosstools-ng. I don't know if it works with previous versions and
@@ -148,7 +148,7 @@ COMPILING_LOCATION="${CT_TOP_DIR}/src"
 CmdOptionString=''
 
 # Adding to PATH can be exponentially explosive, so just keep three
-OriginalPath=$PATH
+OriginalPath="${PATH}"
 PathWithBrewTools=''
 PathWithCrossCompiler=''
 
@@ -263,12 +263,12 @@ function removePathWithCheck()
 
 function waitForPid()
 {
-   pid=$1
-   spindleCount=0
-   spindleArray=('|' '/' '-' '\')
-   STARTTIME=$(date +%s)
+   local pid=$1
+   local spindleCount=0
+   local spindleArray=('|' '/' '-' '\')
+   local STARTTIME=$(date +%s)
 
-   while ps -p $pid >/dev/null; do
+   while ps -p "${pid}" >/dev/null; do
       sleep 1.0
 
       SECONDS=$(($(date +%s) - $STARTTIME))
@@ -280,14 +280,14 @@ function waitForPid()
       [ "$H" -gt "0" ] && printf "%02d:" $H
       printf "%02d:%02d ] ${KGRN}%s${KNRM}" $M $S ${spindleArray[$spindleCount]}
       spindleCount=$((spindleCount + 1))
-      if [[ $spindleCount -eq ${#spindleArray[*]} ]]; then
+      if [[ ${spindleCount} -eq ${#spindleArray[*]} ]]; then
          spindleCount=0
       fi
    done
    printf "\n${KNRM}"
 
    # Get the true return code of the process
-   wait $pid
+   wait "${pid}"
 
    # Set our global return code of the process
    rc=$?
@@ -312,7 +312,7 @@ function cleanBrew()
 function ct-ngMakeClean()
 {
    printf "${KBLU}Cleaning ct-ng${KNRM} ...\n"
-   ctDir="${CT_TOP_DIR_BASE}/${CrossToolSourceDir}"
+   local ctDir="${CT_TOP_DIR_BASE}/${CrossToolSourceDir}"
    printf "Checking for ${KNRM}${ctDir} ... "
    if [ -d "${ctDir}" ]; then
       printf "${KGRN} found ${KNRM}\n"
@@ -345,7 +345,7 @@ function cleanRaspbian()
       printf "${KRED} not found ${KNRM}\n"
       exit -1
    fi
-   cd ${CT_TOP_DIR}/$RaspbianSrcDir/linux
+   cd "${CT_TOP_DIR}/${RaspbianSrcDir}/linux"
    make mrproper
 }
 function realClean()
@@ -357,14 +357,14 @@ function realClean()
    # a lot of disks hanging around.  I had 47, Doh!
    if [ -d  "${CT_TOP_DIR_BASE}" ]; then 
       printf "${KBLU}Ejecting ${CT_TOP_DIR_BASE} ${KNRM}\n"
-      hdiutil eject ${CT_TOP_DIR_BASE}
+      hdiutil eject "${CT_TOP_DIR_BASE}"
    fi
 
    # Eject the disk instead of unmounting it or you will have
    # a lot of disks hanging around.  I had 47, Doh!
    if [ -d  "${CT_TOP_DIR}" ]; then 
       printf "${KBLU}Ejecting  ${CT_TOP_DIR} ${KNRM}\n"
-      hdiutil eject ${CT_TOP_DIR}
+      hdiutil eject "${CT_TOP_DIR}"
    fi
 
 
@@ -393,12 +393,12 @@ function createCaseSensitiveVolumeBase()
       sleep 3
 
    else
-      hdiutil create ${VolumeBase}           \
-                      -volname ${VolumeBase} \
-                      -type SPARSE           \
-                      -size 4g               \
-                      -fs HFSX               \
-                      -quiet                 \
+      hdiutil create "${VolumeBase}"           \
+                      -volname "${VolumeBase}" \
+                      -type SPARSE             \
+                      -size 4g                 \
+                      -fs HFSX                 \
+                      -quiet                   \
                       -puppetstrings
    fi
 
@@ -428,7 +428,7 @@ function createCaseSensitiveVolume()
 {
     VolumeDir="${CT_TOP_DIR}"
     printf "${KBLU}Creating volume mounted as ${KNRM} ${VolumeDir} ...\n"
-    if [  -d "${VolumeDir}" ]; then
+    if [ -d "${VolumeDir}" ]; then
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${VolumeDir} \n"      
        return;
     fi
@@ -442,12 +442,12 @@ function createCaseSensitiveVolume()
       sleep 3
 
    else
-      hdiutil create ${Volume}              \
-                      -volname ${Volume}    \
-                      -type SPARSE          \
-                      -size 32              \
-                      -fs HFSX              \
-                      -quiet                \
+      hdiutil create "${Volume}"              \
+                      -volname "${Volume}"    \
+                      -type SPARSE            \
+                      -size 32                \
+                      -fs HFSX                \
+                      -quiet                  \
                       -puppetstrings
    fi
 
@@ -503,28 +503,28 @@ function buildBrewTools()
    fi
    printf "${KYEL} not found -OK ${KNRM}\n"
    
-   if [ ! -d "$BrewHome" ]; then
+   if [ ! -d "${BrewHome}" ]; then
       printf "${KBLU}Installing HomeBrew tools ${KNRM} ...\n"
       mkdir "${BrewHome}"
       cd "${BrewHome}"
-      curl -Lsf http://github.com/mxcl/homebrew/tarball/master | tar xz --strip 1 -C${BrewHome}
+      curl -Lsf 'http://github.com/mxcl/homebrew/tarball/master' | tar xz --strip 1 -C "${BrewHome}"
 
    else
       printf "${KBLU}   - Using existing Brew installation ${KNRM} in ${BrewHome}\n"
    fi
 
    printf "${KBLU}Checking for Brew log path ${KNRM} ... "
-   if [ ! -d "$HOMEBREW_LOG_PATH" ]; then
+   if [ ! -d "${HOMEBREW_LOG_PATH}" ]; then
       printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KBLU}Creating brew logs directory: ${KNRM} ${HOMEBREW_LOG_PATH} ... "
-      mkdir "$HOMEBREW_LOG_PATH"
+      mkdir "${HOMEBREW_LOG_PATH}"
       printf "${KGRN} done ${KNRM}\n"
 
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
 
-   export PATH=$PathWithBrewTools
+   export PATH="${PathWithBrewTools}"
 
    printf "${KBLU}Updating HomeBrew tools ${KNRM} ...\n"
    printf "${KRED}Ignore the ERROR: could not link ${KNRM}\n"
@@ -537,16 +537,16 @@ function buildBrewTools()
    set +e
 
    printf "${KBLU}Running Brew update ${KNRM} ... Logging to /tmp/brew_update.log \n"
-   $BrewHome/bin/brew update > /tmp/brew_update.log 2>&1 &
+   brew update > '/tmp/brew_update.log' 2>&1 &
    pid="$!"
-   waitForPid "$pid"
+   waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} brew update tools failed. Check the log for details\n"
-      exit $rc
+      exit ${rc}
    fi
    printf "${KGRN} done ${KNRM}\n"
    
@@ -558,67 +558,67 @@ function buildBrewTools()
    printf "${KBLU}Installing brew tools. This may take a couple of hours ${KNRM} to ${BrewHome} ... \n"
 
    # --default-names was deprecated
-   $BrewHome/bin/brew install $BrewTools  --build-from-source --with-real-names 
+   brew install ${BrewTools}  --build-from-source --with-real-names 
    printf "${KGRN} Install of Brew Tools done ${KNRM}\n"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
 
    printf "${KBLU}Checking for ${KNRM} $BrewHome/bin/gsha512sum ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/gsha512sum ]; then
+   if [ ! -f "${BrewHome}/bin/gsha512sum" ]; then
       printf "${KRED} not found ${KNRM}\n"
       exit 1
    fi
    printf "${KGRN} found ${KNRM}\n"
-   printf "${KBLU}Checking for ${KNRM} $BrewHome/bin/sha512sum ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/sha512sum ]; then
+   printf "${KBLU}Checking for ${KNRM} ${BrewHome}/bin/sha512sum ${KNRM} ... "
+   if [ ! -f "${BrewHome}/bin/sha512sum" ]; then
       printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KNRM}Linking gsha512sum to sha512sum ${KNRM}\n"
-      ln -s $BrewHome/bin/gsha512sum $BrewHome/bin/sha512sum
+      ln -s "${BrewHome}/bin/gsha512sum" "${BrewHome}/bin/sha512sum"
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
 
-   printf "${KBLU}Checking for ${KNRM} $BrewHome/bin/gsha256sum ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/gsha256sum ]; then
+   printf "${KBLU}Checking for ${KNRM} ${BrewHome}/bin/gsha256sum ${KNRM} ... "
+   if [ ! -f "${BrewHome}/bin/gsha256sum" ]; then
       printf "${KRED} not found ${KNRM}\n"
       exit 1
    fi
    printf "${KGRN} found ${KNRM}\n"
 
-   printf "${KBLU}Checking for ${KNRM} $BrewHome/bin/sha256sum ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/sha256sum ]; then
+   printf "${KBLU}Checking for ${KNRM} ${BrewHome}/bin/sha256sum ${KNRM} ... "
+   if [ ! -f "${BrewHome}/bin/sha256sum" ]; then
       printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KNRM}Linking gsha256sum to sha256sum ${KNRM}\n"
-      ln -s $BrewHome/bin/gsha256sum $BrewHome/bin/sha256sum
+      ln -s "${BrewHome}/bin/gsha256sum" "${BrewHome}/bin/sha256sum"
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
 
-   printf "${KBLU}Checking for ${KNRM} $BrewHome/bin/readlink ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/readlink ]; then
+   printf "${KBLU}Checking for ${KNRM} ${BrewHome}/bin/readlink ${KNRM} ... "
+   if [ ! -f "${BrewHome}/bin/readlink" ]; then
       printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KNRM}Linking greadlink to readlink ${KNRM}\n"
-      ln -s $BrewHome/bin/greadlink $BrewHome/bin/readlink
+      ln -s "${BrewHome}/bin/greadlink" "${BrewHome}/bin/readlink"
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
 
-   printf "${KBLU}Checking for ${KNRM} $BrewHome/bin/stat ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/stat ]; then
+   printf "${KBLU}Checking for ${KNRM} ${BrewHome}/bin/stat ${KNRM} ... "
+   if [ ! -f "${BrewHome}/bin/stat" ]; then
       printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KNRM}Linking gstat to stat ${KNRM}\n"
-      ln -s $BrewHome/bin/gstat $BrewHome/bin/stat
+      ln -s "${BrewHome}/bin/gstat" "${BrewHome}/bin/stat"
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
 
 
-   printf "${KBLU}Checking for ${KNRM} $BrewHome/bin/grep ${KNRM} ... "
-   if [ ! -f $BrewHome/bin/grep ]; then
+   printf "${KBLU}Checking for ${KNRM} ${BrewHome}/bin/grep ${KNRM} ... "
+   if [ ! -f "${BrewHome}/bin/grep" ]; then
       printf "${KYEL} not found -OK ${KNRM}\n"
       printf "${KNRM}Linking ggrep to grep ${KNRM}\n"
-      ln -s $BrewHome/bin/ggrep $BrewHome/bin/grep
+      ln -s "${BrewHome}/bin/ggrep" "${BrewHome}/bin/grep"
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
@@ -631,18 +631,18 @@ function buildBrewTools()
       rc="n"
       cd "${BrewHome}/opt/gcc/bin"
       for fn in `ls *-8`; do
-         newFn=${fn/-8}
+         local newFn=${fn/-8}
          if [ ! -L "${newFn}" ]; then
-            if [ $rc = 'n' ]; then
+            if [ "${rc}" = 'n' ]; then
                printf "${KGRN} found ${KNRM}\n"
             fi
             rc='y'
             printf "${KNRM}linking ${fn} to ${newFn} ... "
-            ln -sf ${fn} ${newFn}
+            ln -sf "${fn}" "${newFn}"
             printf "${KGRN} done ${KNRM}\n"
          fi
       done
-      if [ $rc = 'n' ]; then
+      if [ "${rc}" = 'n' ]; then
          printf "${KGRN}links already in place ${KNRM}\n"
       fi
    else
@@ -659,9 +659,9 @@ function buildBrewTools()
 # to be built.
 function buildBinutilsForHost()
 {
-   binutilsDir='binutils-2.30'
-   binutilsFile='binutils-2.30.tar.xz'
-   binutilsURL="https://mirror.sergal.org/gnu/binutils/${binutilsFile}"
+   local binutilsDir='binutils-2.30'
+   local binutilsFile='binutils-2.30.tar.xz'
+   local binutilsURL="https://mirror.sergal.org/gnu/binutils/${binutilsFile}"
 
    printf "${KBLU}Checking for a working ld ${KNRM} ... "
    if [ -x "${BrewHome}/bin/ld" ]; then
@@ -689,7 +689,7 @@ function buildBinutilsForHost()
       # I dont know why this is true, but configure fails otherwise
       set +e
 
-      tar -xzf ${SavedSourcesPath}/${binutilsFile} -C${COMPILING_LOCATION} > /tmp/binutils_extract.log 2>&1 &
+      tar -xzf "${SavedSourcesPath}/${binutilsFile}" -C "${COMPILING_LOCATION}" > '/tmp/binutils_extract.log' 2>&1 &
       pid="$!"
 
       waitForPid "${pid}"
@@ -697,7 +697,7 @@ function buildBinutilsForHost()
       # Exit immediately if a command exits with a non-zero status
       set -e
 
-      if [ $rc != 0 ]; then
+      if [ "${rc}" != '0' ]; then
          printf "${KRED}Error : [${rc}] ${KNRM} extract failed. Check the log for details\n"
          exit $rc
       fi
@@ -711,7 +711,7 @@ function buildBinutilsForHost()
 
    cd "${COMPILING_LOCATION}/${binutilsDir}"
    
-   EPREFIX='' ./configure --prefix=${BrewHome} --enable-ld=yes --target=x86_64-unknown-elf --disable-werror --enable-multilib --program-prefix='' > /tmp/binutils_configure.log 2>&1 &
+   EPREFIX='' ./configure --prefix="${BrewHome}" --enable-ld=yes --target=x86_64-unknown-elf --disable-werror --enable-multilib --program-prefix='' > /tmp/binutils_configure.log 2>&1 &
    pid="$!"
 
    waitForPid "${pid}"
@@ -719,7 +719,7 @@ function buildBinutilsForHost()
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
       exit $rc
    fi
@@ -730,14 +730,14 @@ function buildBinutilsForHost()
    # I dont know why this is true, but configure fails otherwise
    set +e
 
-   make > /tmp/binutils_compile.log 2>&1 &
+   make > '/tmp/binutils_compile.log' 2>&1 &
    pid="$!"
    waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details\n"
       exit $rc
    fi
@@ -748,14 +748,14 @@ function buildBinutilsForHost()
    # I dont know why this is true, but make fails otherwise
    set +e
 
-   make install > /tmp/binutils_install.log 2>&1 &
+   make install > '/tmp/binutils_install.log' 2>&1 &
    pid="$!"
    waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
       exit $rc
    fi
@@ -766,25 +766,25 @@ function buildBinutilsForHost()
 function downloadCrossTool()
 {
    printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${COMPILING_LOCATION} \n"
-   CrossToolArchive=${CrossToolVersion}.tar.bz2
-   if [ -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
+   local CrossToolArchive="${CrossToolVersion}.tar.bz2"
+   if [ -f "${SavedSourcesPath}/${CrossToolArchive}" ]; then
       printf "   -Using existing archive ${CrossToolArchive} ${KNRM}\n"
    else
       CrossToolUrl="http://crosstool-ng.org/download/crosstool-ng/${CrossToolArchive}"
-      curl -L -o "${SavedSourcesPath}/${CrossToolArchive}" $CrossToolUrl
+      curl -L -o "${SavedSourcesPath}/${CrossToolArchive}" "${CrossToolUrl}"
    fi
 
    if [ -d "${COMPILING_LOCATION}/${CrossToolSourceDir}" ]; then
       printf "   ${KRED}WARNING${KNRM} - ${CrossToolSourceDir} exists and will be used.\n"
       printf "   ${KRED}WARNING${KNRM} - Remove it to start fresh\n"
    else
-      tar -xf "${SavedSourcesPath}/$CrossToolArchive" \
+      tar -xf "${SavedSourcesPath}/${CrossToolArchive}" \
          -C "${COMPILING_LOCATION}/${CrossToolSourceDir}"
    fi
 }
 function downloadCrossTool_LATEST()
 {  
-   export PATH=$PathWithBrewTools
+   export PATH="${PathWithBrewTools}"
    
    cd "${COMPILING_LOCATION}"
    printf "${KBLU}Downloading crosstool-ng ${KNRM} to ${COMPILING_LOCATION} \n"
@@ -795,26 +795,26 @@ function downloadCrossTool_LATEST()
       return
    fi
 
-   CrossToolUrl="https://github.com/crosstool-ng/crosstool-ng.git"
+   local CrossToolUrl="https://github.com/crosstool-ng/crosstool-ng.git"
    CrossToolArchive=${CrossToolVersion}_latest.tar.xz
    
-   if [ -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
-      printf "   -Using existing archive $CrossToolArchive ${KNRM}\n"
+   if [ -f "${SavedSourcesPath}/${CrossToolArchive}" ]; then
+      printf "   -Using existing archive ${CrossToolArchive} ${KNRM}\n"
       
       printf "${KBLU}Decompressing ${KNRM} ${CrossToolArchive} ... "
       
-      tar -xf "${SavedSourcesPath}/$CrossToolArchive" -C "${COMPILING_LOCATION}"
+      tar -xf "${SavedSourcesPath}/${CrossToolArchive}" -C "${COMPILING_LOCATION}"
       
       printf "${KGRN} done ${KNRM}\n"    
       
    else
-      git clone ${CrossToolUrl}  "${COMPILING_LOCATION}/${CrossToolSourceDir}"
+      git clone "${CrossToolUrl}"  "${COMPILING_LOCATION}/${CrossToolSourceDir}"
    fi
    
-   if [ ! -f "${SavedSourcesPath}/$CrossToolArchive" ]; then
+   if [ ! -f "${SavedSourcesPath}/${CrossToolArchive}" ]; then
       printf "${KBLU}saving ${KNRM} ${CrossToolArchive} ... "
       
-      tar -cJf "${SavedSourcesPath}/$CrossToolArchive" \
+      tar -cJf "${SavedSourcesPath}/${CrossToolArchive}" \
          "${COMPILING_LOCATION}/${CrossToolSourceDir}"
       
       printf "${KGRN} done ${KNRM}\n"
@@ -839,7 +839,7 @@ function patchConfigFileForVolume()
        printf "${KBLU}Changing /Volumes/CrossToolNG ${KNRM} to /Volumes/${Volume} ... "
 
        if [ -f "${COMPILING_LOCATION}/.config" ]; then
-          sed -i.bak -e's/CrossToolNG/'$Volume'/g' "${COMPILING_LOCATION}/.config"
+          sed -i.bak -e's/CrossToolNG/'${Volume}'/g' "${COMPILING_LOCATION}/.config"
           printf "${KGRN} done ${KNRM}\n"
        else
            printf "${KRED} not found ${KNRM}\n"
@@ -860,7 +860,7 @@ function patchConfigFileForOutputDir()
        printf "${KGRN} required ${KNRM}\n"
        printf "${KBLU}Changing x-tools ${KNRM} to ${OutputDir} ... "
        if [ -f "${COMPILING_LOCATION}/.config" ]; then
-           sed -i.bak2 -e's/x-tools/'$OutputDir'/g' "${COMPILING_LOCATION}/.config"
+           sed -i.bak2 -e's/x-tools/'${OutputDir}'/g' "${COMPILING_LOCATION}/.config"
            printf "${KGRN} done ${KNRM}\n"
        else
            printf "${KRED} not found ${KNRM}\n"
@@ -882,7 +882,7 @@ function patchConfigFileForSavedSourcesPath()
        printf "${KBLU}Changing ${CT_TOP_DIR}/sources ${KNRM} to ${SavedSourcesPath} ... "
        if [ -f "${COMPILING_LOCATION}/.config" ]; then
           # Since a path may have a slash, use a  pound sign as a delimeter
-          sed -i.bak3 -e's#CT_LOCAL_TARBALLS_DIR="/Volumes/'$VolumeBase'/sources"#CT_LOCAL_TARBALLS_DIR="'$SavedSourcesPath'"#g' "${COMPILING_LOCATION}/.config" 
+          sed -i.bak3 -e's#CT_LOCAL_TARBALLS_DIR="/Volumes/'${VolumeBase}'/sources"#CT_LOCAL_TARBALLS_DIR="'${SavedSourcesPath}'"#g' "${COMPILING_LOCATION}/.config" 
           
           printf "${KGRN} done ${KNRM}\n"
        else
@@ -923,13 +923,13 @@ function compileCrosstool()
       return
    fi
    
-   export PATH=$PathWithBrewTools
+   export PATH="${PathWithBrewTools}"
    
    cd "${COMPILING_LOCATION}/${CrossToolSourceDir}"
 
 
    # It is strange that gettext is put in opt
-   gettextDir=${BrewHome}/opt/gettext
+   gettextDir="${BrewHome}/opt/gettext"
    
    printf "${KBLU} Executing configure for crosstool-ng ${KNRM} --with-libintl-prefix ... \n"
 
@@ -943,7 +943,7 @@ function compileCrosstool()
    # CPPFLAGS is required too to fix libintl.h not found
    LDFLAGS="  -L${BrewHome}/opt/gettext/lib -lintl " \
    CPPFLAGS=" -I${BrewHome}/opt/gettext/include"     \
-   ./configure --with-libintl-prefix=$gettextDir     \
+   ./configure --with-libintl-prefix=${gettextDir}   \
                --prefix="${CT_TOP_DIR_BASE}/ctng"    \
    > /tmp/ct-ng_config.log 2>&1 &
    pid="$!"
@@ -952,7 +952,7 @@ function compileCrosstool()
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details \n"
       exit $rc
    fi
@@ -963,14 +963,14 @@ function compileCrosstool()
    # I dont know why this is true, but make fails otherwise
    set +e
 
-   make > /tmp/ctng_build.log 2>&1 &
+   make > '/tmp/ctng_build.log' 2>&1 &
    pid="$!"
    waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details \n"
       exit $rc
    fi
@@ -981,14 +981,14 @@ function compileCrosstool()
    # I dont know why this is true, but make fails otherwise
    set +e
 
-   make install > /tmp/ctng_install.log 2>&1 &
+   make install > '/tmp/ctng_install.log' 2>&1 &
    pid="$!"
    waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details \n"
       exit $rc
    fi
@@ -998,7 +998,7 @@ function compileCrosstool()
 function createCrossCompilerConfigFile()
 {
 
-   cd ${COMPILING_LOCATION}
+   cd "${COMPILING_LOCATION}"
 
    printf "${KBLU}Checking for ct-ng config file ${KNRM} ${COMPILING_LOCATION}/.config ... "
    if [ -f  "${COMPILING_LOCATION}/.config" ]; then
@@ -1093,7 +1093,7 @@ function runCTNG()
    printf "${KBLU}Building Cross Compiler toolchain ${KNRM}\n"
    printf "${KBLU}Checking if ${ToolchainName}-gcc already exists ${KNRM} ... "
    testBuild
-   if [ $rc = '0' ]; then
+   if [ "${rc}" = '0' ]; then
       printf "${KGRN} found ${KNRM}"
       printf "${KNRM} To rebuild it, remove the old first \n"
       return
@@ -1104,7 +1104,7 @@ function runCTNG()
 
    createCrossCompilerConfigFile
 
-   cd ${COMPILING_LOCATION}
+   cd "${COMPILING_LOCATION}"
    
    printf "${KBLU}Checking for:${KNRM} ${COMPILING_LOCATION}/.config ... "
    if [ ! -f "${COMPILING_LOCATION}/.config" ]; then
@@ -1118,7 +1118,7 @@ function runCTNG()
    else
       printf "${KGRN} found ${KNRM}\n"
    fi
-   export PATH=$PathWithBrewTools
+   export PATH="${PathWithBrewTools}"
 
    if [ "${RunCTNGOptArg}" = 'list-steps' ]; then
       ct-ng "${RunCTNGOptArg}"
@@ -1140,18 +1140,19 @@ function buildLibtool()
 {   
     cd "${COMPILING_LOCATION}/libelf"
     # ./configure --prefix=${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}
-    ./configure  -prefix=${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}  --host=${ToolchainName}
+    ./configure  -prefix="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}"  --host="${ToolchainName}"
     make
     make install
 }
 
 function downloadAndBuildzlibForTarget()
 {
-   zlibFile='zlib-1.2.11.tar.gz'
-   zlibURL="https://zlib.net/${zlibFile}"
+   local zlibFile='zlib-1.2.11.tar.gz'
+   local zlibURL="https://zlib.net/${zlibFile}"
 
    printf "${KBLU}Checking for Cross Compiled ${KNRM} zlib.h and libz.a ... "
-   if [ -f "${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/zlib.h" ] && [ -f  "${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
+   if [ -f "${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/include/zlib.h" ] && 
+      [ -f  "${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/lib/libz.a" ]; then
       printf "${KGRN} found ${KNRM}\n"
       return
    fi
@@ -1174,7 +1175,7 @@ function downloadAndBuildzlibForTarget()
          printf "${KGRN} done ${KNRM}\n"
       fi
       printf "${KBLU}Decompressing ${KNRM} ${zlibFile} ... "
-      tar -xzf ${SavedSourcesPath}/${zlibFile} -C "${COMPILING_LOCATION}"
+      tar -xzf "${SavedSourcesPath}/${zlibFile}" -C "${COMPILING_LOCATION}"
       printf "${KGRN} done ${KNRM}\n"
    fi
 
@@ -1197,7 +1198,7 @@ function downloadAndBuildzlibForTarget()
     # Exit immediately if a command exits with a non-zero status
     set -e
 
-    if [ $rc != 0 ]; then
+    if [ "${rc}" != '0' ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details \n"
        exit $rc
     fi
@@ -1206,7 +1207,7 @@ function downloadAndBuildzlibForTarget()
 
     # I dont know why this is true, but build fails otherwise
     set +e
-    make > /tmp/zlib_build.log 2>&1 &
+    make > '/tmp/zlib_build.log' 2>&1 &
 
     pid="$!"
     waitForPid "${pid}"
@@ -1214,7 +1215,7 @@ function downloadAndBuildzlibForTarget()
     # Exit immediately if a command exits with a non-zero status
     set -e
 
-    if [ $rc != 0 ]; then
+    if [ "${rc}" != '0' ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details \n"
        exit $rc
     fi
@@ -1223,7 +1224,7 @@ function downloadAndBuildzlibForTarget()
 
     # I dont know why this is true, but install fails otherwise
     set +e
-    make install > /tmp/zlib_install.log 2>&1 &
+    make install > '/tmp/zlib_install.log' 2>&1 &
 
     pid="$!"
     waitForPid "${pid}"
@@ -1231,7 +1232,7 @@ function downloadAndBuildzlibForTarget()
     # Exit immediately if a command exits with a non-zero status
     set -e
 
-    if [ $rc != 0 ]; then
+    if [ "${rc}" != '0' ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details \n"
        exit $rc
     fi
@@ -1241,7 +1242,7 @@ function downloadAndBuildzlibForTarget()
 
 function downloadElfLibrary()
 {
-elfLibURL='https://github.com/WolfgangSt/libelf.git'
+   local elfLibURL='https://github.com/WolfgangSt/libelf.git'
 
    cd "${COMPILING_LOCATION}"
    printf "${KBLU}Downloading libelf latest ${KNRM} to ${PWD}\n"
@@ -1254,15 +1255,15 @@ elfLibURL='https://github.com/WolfgangSt/libelf.git'
       git fetch
     
    else
-      git clone --depth=1 ${elfLibURL}
+      git clone --depth=1 "${elfLibURL}"
    fi
 }
 
 function testBuild()
 {
-   export PATH=$PathWithCrossCompiler
-   
-   gpp="${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/bin/${ToolchainName}-g++"
+   export PATH="${PathWithCrossCompiler}"
+
+   local gpp="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-g++"
    if [ ! -f "${gpp}" ]; then
       printf "${KYEL}No executable compiler found. ${KNRM} ${gpp} \n"
       rc='-1'
@@ -1281,14 +1282,13 @@ int main ()
 HELLO_WORLD_EOF
 
 
-   ${ToolchainName}-g++ -fno-exceptions /tmp/HelloWorld.cpp -o /tmp/HelloWorld
+   ${ToolchainName}-g++ -fno-exceptions '/tmp/HelloWorld.cpp' -o '/tmp/HelloWorld'
    rc=$?
 
 }
+
 function testHostCompilerForpthreads()
 {
-
-
 cat <<'TEST_PTHREADS_EOF' > /tmp/pthreadsWorld.c
 
 #include <unistd.h>     /* Symbolic Constants */
@@ -1361,7 +1361,7 @@ TEST_PTHREADS_EOF
 
    gcc /tmp/pthreadsWorld.c -o /tmp/pthreadsWorld
    rc=$?
-   if [ ${rc} != '0' ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED} failed ${KNRM}\n"
       return ${rc}
    fi
@@ -1399,7 +1399,7 @@ TEST_PIE_EOF
 
    g++ /tmp/PIEWorld.cpp -o /tmp/PIEWorld
    rc=$?
-   if [ ${rc} != '0' ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED} failed ${KNRM}\n"
       return ${rc}
    fi
@@ -1415,7 +1415,7 @@ function testHostgcc()
 {
 
    printf "${KBLU}Finding Compiler in PATH ${KNRM} CMD = which g++ ... "
-   whichgcc=$(which g++)
+   local whichgcc=$(which g++)
    if [ "${whichgcc}" = '' ]; then
       printf "${KRED} failed ${KNRM}\n"
       printf "${KRED} No executable compiler found. ${KNRM}\n"
@@ -1455,22 +1455,22 @@ HELLO_WORLD_EOF
 function testHostCompiler()
 {
    printf "${KBLU}Running Host Compiler tests ${KNRM}\n"
-   export PATH=$PathWithBrewTools
+   export PATH="${PathWithBrewTools}"
 
    testHostgcc 
-   if [ ${rc} != '0' ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED} Boooo ! it failed :-( ${KNRM}\n"
       exit ${rc}
    fi
 
    testHostCompilerForPIE 
-   if [ ${rc} != '0' ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED} Boooo ! it failed :-( ${KNRM}\n"
       exit ${rc}
    fi
 
    testHostCompilerForpthreads
-   if [ ${rc} != '0' ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED} Boooo ! it failed :-( ${KNRM}\n"
       exit ${rc}
    fi
@@ -1483,7 +1483,7 @@ function testCrossCompiler()
    printf "${KBLU}Testing toolchain ${ToolchainName} ${KNRM}\n"
 
    testBuild   # testBuild sets rc
-   if [ ${rc} = '0' ]; then
+   if [ "${rc}" = '0' ]; then
       printf "${KGRN} Wahoo ! it works!! ${KNRM}\n"
       exit 0
    else
@@ -1497,7 +1497,7 @@ function buildCrossCompiler()
    createCrossCompilerConfigFile
    printf "${KBLU}Checking for working cross compiler first ${KNRM} ${ToolchainName}-g++ ... "
    testBuild   # testBuild sets rc
-   if [ ${rc} = '0' ]; then
+   if [ "${rc}" = '0' ]; then
       printf "${KGRN} found ${KNRM}\n"
       if [ "${BuildRaspbianOpt}" = 'y' ]; then
          return
@@ -1514,7 +1514,7 @@ function buildCrossCompiler()
 
 function downloadRaspbianKernel()
 {
-RaspbianURL='https://github.com/raspberrypi/linux.git'
+   local RaspbianURL='https://github.com/raspberrypi/linux.git'
 
    printf "${KMAG}*******************************************************************************${KNRM}\n"
    printf "${KMAG}* WHEN CONFIGURING THE RASPIAN KERNEL CHECK THAT THE \n"
@@ -1561,7 +1561,7 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
 
          # I dont know why this is true, but tar fails otherwise
          set +e
-         tar -xzf ${SavedSourcesPath}/Raspbian.tar.xz  > /tmp/Raspbian_extract.log 2>&1 &
+         tar -xzf "${SavedSourcesPath}/Raspbian.tar.xz"  > '/tmp/Raspbian_extract.log' 2>&1 &
 
          pid="$!"
          waitForPid "${pid}"
@@ -1569,7 +1569,7 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
          # Exit immediately if a command exits with a non-zero status
          set -e
 
-         if [ $rc != 0 ]; then
+         if [ "${rc}" != '0' ]; then
             printf "${KRED}Error : [${rc}] ${KNRM} extract failed. \n"
             exit $rc
          fi
@@ -1599,13 +1599,13 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
          # Thankfully we save a copy and as this script is
          # re-enterrit, you can always update the download
          # with a git fetch
-         git clone ${RaspbianURL} 
+         git clone "${RaspbianURL}" 
 
          printf "${KGRN} done ${KNRM}\n"
 
          printf "${KBLU}Checking out remotes/origin/rpi-4.18.y ${KNRM}\n"
-         cd linux
-         git checkout -b remotes/origin/rpi-4.18.y
+         cd 'linux'
+         git checkout -b 'remotes/origin/rpi-4.18.y'
 
          printf "${KGRN} checkout complete ${KNRM}\n"
 
@@ -1619,14 +1619,14 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
          cd "${COMPILING_LOCATION}/${RaspbianSrcDir}"
          # I dont know why this is true, but tar fails otherwise
          set +e
-         tar -cJf "${SavedSourcesPath}/Raspbian.tar.xz" linux  &
+         tar -cJf "${SavedSourcesPath}/Raspbian.tar.xz" 'linux'  &
          pid="$!"
          waitForPid "${pid}"
 
          # Exit immediately if a command exits with a non-zero status
          set -e
 
-         if [ $rc != 0 ]; then
+         if [ "${rc}" != '0' ]; then
             printf "${KRED}Error : [${rc}] ${KNRM} save failed. Check the log for details \n"
             exit $rc
          fi
@@ -1637,7 +1637,7 @@ RaspbianURL='https://github.com/raspberrypi/linux.git'
 }
 function downloadElfHeaderForOSX()
 {
-   ElfHeaderFile='/usr/local/include/elf.h'
+   local ElfHeaderFile='/usr/local/include/elf.h'
    printf "${KBLU}Checking for ${KNRM}${ElfHeaderFile}\n"
    if [ -f "${ElfHeaderFile}" ]; then
       printf "${KGRN} found ${KNRM}\n"
@@ -1649,21 +1649,21 @@ function downloadElfHeaderForOSX()
       printf "${KRED}It will be removed after use.${KNRM}\n\n\n"
       sleep 6
       
-      ElfHeaderFileURL='https://gist.githubusercontent.com/mlafeldt/3885346/raw/2ee259afd8407d635a9149fcc371fccf08b0c05b/elf.h'
-      curl -Lsf ${ElfHeaderFileURL} >  ${ElfHeaderFile}
+      local ElfHeaderFileURL='https://gist.githubusercontent.com/mlafeldt/3885346/raw/2ee259afd8407d635a9149fcc371fccf08b0c05b/elf.h'
+      curl -Lsf "${ElfHeaderFileURL}" >  "${ElfHeaderFile}"
 
       # Apples compiler complained about DECLS, so remove them
-      sed -i, -e's/__BEGIN_DECLS//g' -e's/__END_DECLS//g' ${ElfHeaderFile}
+      sed -i, -e's/__BEGIN_DECLS//g' -e's/__END_DECLS//g' "${ElfHeaderFile}"
    fi
 }
 
 function cleanupElfHeaderForOSX()
 {
-   ElfHeaderFile='/usr/local/include/elf.h'
+   local ElfHeaderFile='/usr/local/include/elf.h'
    printf "${KBLU}Checking for ${KNRM} ${ElfHeaderFile} ... "
    if [ -f "${ElfHeaderFile}" ]; then
       printf "${KGRN} found ${KNRM}\n"
-      if [[ $(grep 'Mathias Lafeldt <mathias.lafeldt@gmail.com>' ${ElfHeaderFile}) ]];then
+      if [[ $(grep 'Mathias Lafeldt <mathias.lafeldt@gmail.com>' "${ElfHeaderFile}") ]];then
          printf "${KGRN}Removing ${ElfHeaderFile} ${KNRM} ... "
          rm "${ElfHeaderFile}"
          printf "${KGRN} done ${KNRM}\n"
@@ -1684,7 +1684,7 @@ function configureRaspbianKernel()
    cd "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux"
    printf "${KBLU}Configuring Raspbian Kernel ${KNRM} in ${PWD}\n"
 
-   export PATH=$PathWithCrossCompiler
+   export PATH="${PathWithCrossCompiler}"
 
 
    # for bzImage
@@ -1693,22 +1693,26 @@ function configureRaspbianKernel()
    export CROSS_PREFIX="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-"
 
    printf "${KBLU}Checkingo for an existing linux/.config file ${KNRM} ... "
-   if [ -f .config ]; then
+   if [ -f '.config' ]; then
       printf "${KYEL} found ${KNRM} \n"
       printf "${KNRM} make mproper & bcm2709_defconfig  ${KNRM} will not be done \n"
       printf "${KNRM} to protect previous changes ${KNRM} \n"
    else
       printf "${KYEL} not found -OK ${KNRM} \n"
       printf "${KBLU}Make bcm2709_defconfig ${KNRM} in ${PWD}\n"
-      export CFLAGS="-Wl,-no_pie"
-      export LDFLAGS=-Wl,-no_pie
-      make ARCH=arm O=${CT_TOP_DIR}/build/kernel mrproper 
+      export CFLAGS='-Wl,-no_pie'
+      export LDFLAGS='-Wl,-no_pie'
+      make ARCH=arm O="${CT_TOP_DIR}/build/kernel" mrproper 
 
 
-      make ARCH=arm CONFIG_CROSS_COMPILE=${ToolchainName}- CROSS_COMPILE=${ToolchainName}- --include-dir="${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/$ToolchainName/include"  bcm2709_defconfig
+      make ARCH=arm \
+         CONFIG_CROSS_COMPILE="${ToolchainName}-" \
+         CROSS_COMPILE="${ToolchainName}-" \
+         --include-dir="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/include" \
+         bcm2709_defconfig
 
       # Since there is no config file then add the cross compiler
-      echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"\n" >> .config
+      echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"\n" >> '.config'
 
    fi
 
@@ -1719,30 +1723,30 @@ function configureRaspbianKernel()
 
    printf "${KBLU}Make zImage ${KNRM} in ${PWD} \n"
 
-   KBUILD_CFLAGS=-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
+   KBUILD_CFLAGS="-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include" \
+   KBUILD_LDLAGS="-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/lib" \
    ARCH=arm \
-      make  -j4 CROSS_COMPILE=${ToolchainName}- \
-        CC=${ToolchainName}-gcc \
-        --include-dir=${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/$ToolchainName/include \
+      make  -j4 CROSS_COMPILE="${ToolchainName}-" \
+        CC="${ToolchainName}-gcc" \
+        --include-dir="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/include" \
         zImage 
 
    printf "${KBLU}Make modules ${KNRM} in ${PWD}\n"
-   KBUILD_CFLAGS=-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
+   KBUILD_CFLAGS="-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include" \
+   KBUILD_LDLAGS="-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/lib" \
    ARCH=arm \
-      make  -j4 CROSS_COMPILE=${ToolchainName}- \
-        CC=${ToolchainName}-gcc \
-        --include-dir=${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/$ToolchainName/sysroot/usr/include \
-        modules
+      make  -j4 CROSS_COMPILE="${ToolchainName}-" \
+      CC="${ToolchainName}-gcc" \
+      --include-dir="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include" \
+      modules
 
    printf "${KBLU}Make dtbs ${KNRM} in ${PWD}\n"
-   KBUILD_CFLAGS=-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \
-   KBUILD_LDLAGS=-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \
+   KBUILD_CFLAGS="-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include" \
+   KBUILD_LDLAGS="-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/lib" \
    ARCH=arm \
-      make  -j4 CROSS_COMPILE=${ToolchainName}- \
+      make  -j4 CROSS_COMPILE="${ToolchainName}-" \
         CC=${ToolchainName}-gcc \
-        --include-dir=${CT_TOP_DIR_BASE}/$OutputDir/$ToolchainName/$ToolchainName/sysroot/usr/include \
+        --include-dir="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include" \
         dtbs
 
    # Only thing changed were
@@ -1768,7 +1772,7 @@ function configureRaspbianKernel()
 
 function installRaspbianKernelToBootVolume()
 {
-   BootPath="/Volumes/boot"  
+   local BootPath='/Volumes/boot'  
    printf "${KBLU}Installing Cross Compiled Raspbian Kernel ${KNRM}\n"
    printf "${KBLU}Checking for Raspbian source ${KNRM} ..."
    if [ ! -d "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux" ]; then
@@ -1797,16 +1801,16 @@ function installRaspbianKernelToBootVolume()
 
 
    printf "${KBLU}Copying Raspbian file ${KNRM} *.dtb to ${BootPath} ... "
-   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/*.dtb ${BootPath}/
+   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/*.dtb "${BootPath}/"
    printf "${KGRN} done ${KNRM}\n"
    printf "${KBLU}Copying Raspbian file ${KNRM} overlays/*.dtb* to ${BootPath} ... "
-   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/*.dtb* ${BootPath}/overlays/
+   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/*.dtb* "${BootPath}/overlays/"
    printf "${KGRN} done ${KNRM}\n"
    printf "${KBLU}Copying Raspbian file ${KNRM} overlays/README to ${BootPath} ... "
-   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/README ${BootPath}/overlays/
+   cp "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/dts/overlays/README" "${BootPath}/overlays/"
    printf "${KGRN} done ${KNRM}\n"
    printf "${KBLU}Copying Raspbian file ${KNRM} zImage to ${BootPath} ... "
-   cp ${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage ${BootPath}/kernel7.img
+   cp "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage" "${BootPath}/kernel7.img"
    printf "${KGRN} done ${KNRM}\n"
 }
 
@@ -1814,8 +1818,8 @@ function checkExt2InstallForOSX()
 {
 
    printf "${KBLU}Checking for Ext2 tools ${KNRM} ... "
-   if [ ! -d $BrewHome/Caskroom/osxfuse ] &&
-      [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
+   if [ ! -d "${BrewHome}/Caskroom/osxfuse" ] &&
+      [ ! -d "${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin/mke2fs" ]; then
       printf "${KRED} not found ${KNRM}\n"
       printf "${KNRM}You must first ${KNRM}\n"
       printf "${KBLU}Execute:${KNRM} ./build.sh ${CmdOptionString} -i ${KNRM}\n"
@@ -1825,8 +1829,8 @@ function checkExt2InstallForOSX()
    printf "${KGRN} found ${KNRM}\n"
 
    printf "${KBLU}Checking that Ext2 tools are set up properly ${KNRM} ... "
-   if [ ! -d /Library/Filesystems/fuse-ext2.fs ] &&
-      [ ! -d /Library/PreferencePanes/fuse-ext2.prefPane ]; then
+   if [ ! -d '/Library/Filesystems/fuse-ext2.fs' ] &&
+      [ ! -d '/Library/PreferencePanes/fuse-ext2.prefPane' ]; then
       printf "\n${KRED}As per the previous Fuse-Ext2 instructions ${KNRM}\n"
 
       cat <<'      EXT2_EOF'
@@ -1852,30 +1856,32 @@ function checkExt2InstallForOSX()
 
 function updateBrewForEXT2()
 {
-   export PATH=$PathWithBrewTools
+   export PATH="${PathWithBrewTools}"
 
-   if [ ! -d $BrewHome/Caskroom/osxfuse ] &&
-      [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
+   if [ ! -d "${BrewHome}/Caskroom/osxfuse" ] &&
+      [ ! -d "${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin/mke2fs" ]; then
 
       # Do not Exit immediately if a command exits with a non-zero status.
       set +e
 
-      if [ ! -d $BrewHome/Caskroom/osxfuse ]; then
+      if [ ! -d "${BrewHome}/Caskroom/osxfuse" ]; then
          printf "${KBLU}Installing brew cask osxfuse ${KNRM}\n"
          printf "${KMAG}*** osxfuse will need sudo *** ${KNRM}\n"
-         $BrewHome/bin/brew cask install osxfuse && true
+         $("${BrewHome}/bin/brew") cask install osxfuse && true
       fi
 
-      if [ ! -d $BrewHome/Cellar/e2fsprogs/1.44.3/sbin/mke2fs ]; then
+      if [ ! -d "${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin/mke2fs" ]; then
          printf "${KBLU}Installing brew ext4fuse ${KNRM}\n"
-         #$BrewHome/bin/brew install ext4fuse && true
-         $BrewHome/bin/brew install --HEAD https://raw.githubusercontent.com/yalp/homebrew-core/fuse-ext2/Formula/fuse-ext2.rb && true
+         #${BrewHome}/bin/brew install ext4fuse && true
+         $("${BrewHome}/bin/brew") install --HEAD 'https://raw.githubusercontent.com/yalp/homebrew-core/fuse-ext2/Formula/fuse-ext2.rb' && true
       fi
 
       # Exit immediately if a command exits with a non-zero status
       set -e
 
-      if [ -f  /Library/Filesystems/fuse-ext2.fs/fuse-ext2.util ] && [ -f /Library/PreferencePanes/fuse-ext2.prefPane/Contents/MacOS/fuse-ext2 ]; then
+      if [ -f  '/Library/Filesystems/fuse-ext2.fs/fuse-ext2.util' ] && 
+         [ -f '/Library/PreferencePanes/fuse-ext2.prefPane/Contents/MacOS/fuse-ext2' ]
+      then
          # They could be there from a previous installation
          # NOOP
          echo "${KNRM}"
@@ -1903,14 +1909,14 @@ function getUSBFlashDeviceForInstallation()
    printf "${KBLU}Finding USB flash devices available to write kernel to ${KNRM} ...\n"
    
    # Create an array of lines of system USB devices
-   lines=()
+   local lines=()
    while IFS=$'\n' read -r line_data; do
       lines+=("${line_data}")
    done <  <( system_profiler  -detailLevel mini SPUSBDataType )
    
    # An array of found device and their corresponding device number
-   FoundDeviceNumbers=()
-   FoundDevices=()
+   local FoundDeviceNumbers=()
+   local FoundDevices=()
    
    # Go over all the output stored in the array of lines
    for (( i=0; i<${#lines[@]}; i++ )); do
@@ -1920,12 +1926,12 @@ function getUSBFlashDeviceForInstallation()
       if [[ "${line}" = *"USB SD Reader:"* ]] ||
          [[ "${line}" = *"FLASH DRIVE:"* ]]
       then
-         device=''
+         local device=''
          if [[ "${line}" = *"USB SD Reader:"* ]]; then
-            device="USB SD Reader:"
+            device='USB SD Reader:'
          fi
          if [[ "${line}" = *"FLASH DRIVE:"* ]]; then
-            device="FLASH DRIVE:"
+            device='FLASH DRIVE:'
          fi
          
          # Now continue searching for the device number
@@ -1939,8 +1945,8 @@ function getUSBFlashDeviceForInstallation()
             
             # Search for the disk number
             if [[ "${line}" = *"disk"* ]]; then
-               DeviceNumber=$(echo "${line}" | grep -o -E '[0-9]+$')
-               if [[ $DeviceNumber -ge 2 ]]; then
+               local DeviceNumber=$(echo "${line}" | grep -o -E '[0-9]+$')
+               if [[ ${DeviceNumber} -ge 2 ]]; then
                  
                   FoundDeviceNumbers+=("${DeviceNumber}")
                   FoundDevices+=("${device}")
@@ -1965,11 +1971,11 @@ function getUSBFlashDeviceForInstallation()
    if [[ ${#FoundDeviceNumbers[@]} -eq 1 ]]; then
       printf "${KNRM}Found /dev/disk${FoundDevices[0]} \n"
       read -p "Is this correct (Y/n) " -r
-      if [[ $REPLY =~ ^[Yy]$ ]]; then
-         rc=${FoundDevices[0]}
+      if [[ "${REPLY}" =~ ^[Yy]$ ]]; then
+         rc="${FoundDevices[0]}"
          return
       fi
-      if [[ $REPLY =~ ^[Nn]$ ]]; then
+      if [[ "${REPLY}" =~ ^[Nn]$ ]]; then
          printf "${KRED}Insert a device and rerun. ${KNRM}\n"
          exit -1
       fi
@@ -1986,13 +1992,13 @@ function getUSBFlashDeviceForInstallation()
    
    printf "${KNRM}To which device you would like to write Rasbian to? \n"
    read -p "(Please only enter the number like 2 for /dev/disk2) " -r
-   if [[ ! $REPLY =~ ^[0-9]$ ]]; then
+   if [[ ! "${REPLY}" =~ ^[0-9]$ ]]; then
       printf "${KRED}You haven't entered a number.${KNRM}\n"
       printf "${KRED}Aborted due user request.${KNRM}\n"
       exit -1
    fi
    
-   if [[ ! $REPLY -ge 2 ]]; then
+   if [[ ! "${REPLY}" -ge 2 ]]; then
       printf "${KRED}The number is lower than 2.${KNRM}\n"
       printf "${KRED}Since /dev/disk0 and /dev/disk1 are usually system drives,${KNRM}\n"
       printf "${KRED}We can't accept this device. We don't want to possibly destroy your ${KNRM}\n"
@@ -2007,13 +2013,13 @@ function getUSBFlashDeviceForInstallation()
       exit -1
    fi
 
-   rc=${REPLY}
+   rc="${REPLY}"
          
 }
 
 function downloadRaspbianStretch()
 {
-   RaspbianStretchURL="http://director.downloads.raspberrypi.org/raspbian/images/raspbian-2018-06-29/${RaspbianStretchFile}.zip"
+   local RaspbianStretchURL="http://director.downloads.raspberrypi.org/raspbian/images/raspbian-2018-06-29/${RaspbianStretchFile}.zip"
     
    
    printf "${KBLU}Downloading Raspbian Stretch latest ${KNRM} \n"   
@@ -2037,7 +2043,7 @@ function downloadRaspbianStretch()
       
       printf "${KBLU}Fetching ${RaspbianStretchFile} ${KNRM}\n"
          
-      wget -c ${RaspbianStretchURL} 
+      wget -c "${RaspbianStretchURL}" 
 
       printf "${KGRN} done ${KNRM}\n"
    fi
@@ -2047,14 +2053,14 @@ function downloadRaspbianStretch()
    # Do not Exit immediately if a command exits with a non-zero status.
    set +e
    
-   unzip "${RaspbianStretchFile}.zip" > /tmp/stretch_unzip.log 2>&1 &
+   unzip "${RaspbianStretchFile}.zip" > '/tmp/stretch_unzip.log' 2>&1 &
    pid="$!"
-   waitForPid "$pid"
+   waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} unzip failed. Check the log for details\n"
       exit $rc
    fi
@@ -2096,18 +2102,18 @@ function installRaspbianStretchOntoUSBDevice()
    # Do not Exit immediately if a command exits with a non-zero status.
    set +e
    
-   # echo $REPLY | sudo -kS dd if="${RaspbianStretchFile}.img" of="/dev/disk${TargetUSBDevice}" bs=1m > /tmp/dd.og 2>&1 &
+   # echo ${REPLY} | sudo -kS dd if="${RaspbianStretchFile}.img" of="/dev/disk${TargetUSBDevice}" bs=1m > /tmp/dd.og 2>&1 &
    sudo -sk dd if="${RaspbianStretchFile}.img" of="/dev/disk${TargetUSBDevice}" bs=1m > /tmp/dd.log  &
    sleep 20
    printf "\n\n"
    
    pid="$!"
-   waitForPid "$pid"
+   waitForPid "${pid}"
 
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   if [ $rc != 0 ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} dd failed. Check the log for details \n"
       exit $rc
    fi   
@@ -2117,7 +2123,7 @@ function installRaspbianStretchOntoUSBDevice()
 
 function mountRaspbianRootPartitiion()
 {
-   PATH=${PathWithBrewTools}
+   PATH="${PathWithBrewTools}"
    printf "${KBLU}Mounting Raspbian Partitiions ${KNRM} \n"  
    
    printf "${KBLU}Creating /Volumes/root mount point ${KNRM} ... " 
@@ -2125,11 +2131,11 @@ function mountRaspbianRootPartitiion()
    printf "${KGRN} done ${KNRM}\n"
    
    printf "${KBLU}Mounting /Volumes/root ${KNRM} ... " 
-   fuse-ext2 -o force /dev/disk${TargetUSBDevice}s2 /Volumes/root
+   fuse-ext2 -o force "/dev/disk${TargetUSBDevice}s2" '/Volumes/root'
    printf "${KGRN} done ${KNRM}\n"
    
    printf "${KBLU}Checking for /Volumes/root/bin ${KNRM} ... "      
-   if [ ! -d /Volumes/root/bin ]; then
+   if [ ! -d '/Volumes/root/bin' ]; then
       printf "${KRED} not found ${KNRM}\n"
       printf "${KRED} Raspbian not mounted ${KNRM}\n"
       exit -1 
@@ -2139,7 +2145,7 @@ function mountRaspbianRootPartitiion()
 
 function mountRaspbianBootPartitiion()
 {
-   PATH=${PathWithBrewTools}
+   PATH="${PathWithBrewTools}"
    
    printf "${KBLU}Mounting /Volumes/boot ${KNRM} ... " 
    
@@ -2151,7 +2157,7 @@ function mountRaspbianBootPartitiion()
    
    
    printf "${KBLU}Checking for /Volumes/boot ${KNRM} ... "      
-   if [ ! -d /Volumes/boot ]; then
+   if [ ! -d '/Volumes/boot' ]; then
       printf "${KRED} not found ${KNRM}\n"
       exit -1 
    fi
@@ -2173,7 +2179,7 @@ function unMountRaspbianVolume()
 {
    printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /dev/disk${TargetUSBDevice} ... "
        
-   diskutil unmountDisk  /dev/disk${TargetUSBDevice}
+   diskutil unmountDisk  "/dev/disk${TargetUSBDevice}"
    
    # No done message required as diskutil provides its own
 }
@@ -2182,7 +2188,7 @@ function ejectRaspbianDisk()
 {
    printf "${KBLU}Ejecting Raspbian Disk ${KNRM} ... "  
    
-   hdiutil eject  /dev/disk${TargetUSBDevice}
+   hdiutil eject  "/dev/disk${TargetUSBDevice}"
    
    # No done message required as hdiutil provides its own
 }
@@ -2208,14 +2214,14 @@ function updateVariablesForChangedOptions()
    
    COMPILING_LOCATION="${CT_TOP_DIR}/src"   
    
-   export BREW_PREFIX=$BrewHome
-   export PKG_CONFIG_PATH=$BREW_PREFIX
-   export HOMEBREW_CACHE=${SavedSourcesPath}
-   export HOMEBREW_LOG_PATH=${BrewHome}/brew_logs
+   export BREW_PREFIX="${BrewHome}"
+   export PKG_CONFIG_PATH="${BREW_PREFIX}"
+   export HOMEBREW_CACHE="${SavedSourcesPath}"
+   export HOMEBREW_LOG_PATH="${BrewHome}/brew_logs"
    
-   PathWithBrewTools=$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:$BrewHome/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:$OriginalPath 
+   PathWithBrewTools="${BrewHome}/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}" 
    
-   PathWithCrossCompiler=${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$OriginalPath 
+   PathWithCrossCompiler="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${BrewHome}/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}" 
    
 }
 function explainExclusion()
@@ -2233,21 +2239,21 @@ function explainExclusion()
 OPTSTRING='h?P?c:V:O:f:btT:i:S:'
 
 # Getopt #1 - To enforce order
-while getopts "$OPTSTRING" opt; do
-   case $opt in
+while getopts "${OPTSTRING}" opt; do
+   case ${opt} in
       h)
           showHelp
           exit 0
           ;;
           #####################
       P)
-          PATH=${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/bin:$BrewHome/bin:$BrewHome/opt/gettext/bin:$BrewHome/opt/bison/bin:$BrewHome/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:$BrewHome/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:$PATH
+          PATH="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${BrewHome}/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:${PATH}"
   
           printf "${KNRM}PATH=${PATH} \n"
-          printf "${KNRM}KBUILD_CFLAGS=-I${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/include \n"
-          printf "${KNRM}KBUILD_LDLAGS=-L${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/$ToolchainName/sysroot/usr/lib \n"
-          printf "./configure  ARCH=arm  CROSS_COMPILE=${ToolchainName}- --prefix=${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName} \n"
-          printf "make ARCH=arm --include-dir=${CT_TOP_DIR}Base/$OutputDir/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${ToolchainName}-\n"
+          printf "${KNRM}KBUILD_CFLAGS=-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include \n"
+          printf "${KNRM}KBUILD_LDLAGS=-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/lib \n"
+          printf "./configure  ARCH=arm  CROSS_COMPILE=${ToolchainName}- --prefix=${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName} \n"
+          printf "make ARCH=arm --include-dir=${CT_TOP_DIR}Base/${OutputDir}/${ToolchainName}/${ToolchainName}/include CROSS_COMPILE=${ToolchainName}-\n"
           exit 0
           ;;
           #####################
@@ -2255,22 +2261,23 @@ while getopts "$OPTSTRING" opt; do
           # Flag that something else was wanted to be done first
           testCompilerOnlyOpt='n'
 
-          if [[ $OPTARG =~ ^[Bb]rew$ ]]; then 
+          if [[ "${OPTARG}" =~ ^[Bb]rew$ ]]; then 
              cleanBrew
              exit
           fi
 
-          if  [ $OPTARG = 'ctng' ] || [ $OPTARG = 'ct-ng' ]; then
+          if  [ "${OPTARG}" = 'ctng' ] || 
+              [ "${OPTARG}" = 'ct-ng' ]; then
              ct-ngMakeClean
              exit
           fi
 
-          if [[ $OPTARG =~ ^[Rr]aspbian$ ]]; then 
+          if [[ "${OPTARG}" =~ ^[Rr]aspbian$ ]]; then 
              cleanRaspbian
              exit
           fi
 
-          if  [ $OPTARG = 'realClean' ]; then
+          if  [ "${OPTARG}" = 'realClean' ]; then
              realClean
              exit
           fi
@@ -2278,7 +2285,7 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       V)
-          Volume=$OPTARG
+          Volume="${OPTARG}"
 
           VolumeOpt='y'
 
@@ -2289,7 +2296,7 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       O)
-          OutputDir=$OPTARG
+          OutputDir="${OPTARG}"
 
           OutputDirOpt='y'
 
@@ -2300,7 +2307,7 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       f)
-          CrossToolNGConfigFile=$OPTARG
+          CrossToolNGConfigFile="${OPTARG}"
 
           CmdOptionString="${CmdOptionString} -f ${CrossToolNGConfigFile}"
 
@@ -2322,20 +2329,20 @@ while getopts "$OPTSTRING" opt; do
           # Why would checking for an unbound variable cause an unbound variable?
           set +u
 
-          nextOpt=${!OPTIND}
+          nextOpt="${!OPTIND}"
 
           # Exit immediately for unbound variables.
           set -u
 
           # existing or starting with dash?
-          if [[ -n $nextOpt && $nextOpt != -* ]]; then
+          if [[ -n "${nextOpt}" && "${nextOpt}" != -* ]]; then
              OPTIND=$((OPTIND + 1))
 
-             if [[ $nextOpt =~ ^[Rr]aspbian$ ]]; then 
+             if [[ "${nextOpt}" =~ ^[Rr]aspbian$ ]]; then 
                 BuildRaspbianOpt='y'
              else
                 # Run ct-ng with the option passed in 
-                RunCTNGOptArg=$nextOpt
+                RunCTNGOptArg="${nextOpt}"
              fi
           else
 
@@ -2348,7 +2355,7 @@ while getopts "$OPTSTRING" opt; do
           #####################
        T)
           ToolchainNameOpt=y
-          ToolchainName=$OPTARG
+          ToolchainName="${OPTARG}"
 
           CmdOptionString="${CmdOptionString} -T ${ToolchainName}"
 
@@ -2370,13 +2377,13 @@ while getopts "$OPTSTRING" opt; do
           set -u
 
           # existing or starting with dash?
-          if [[ -n $nextOpt && $nextOpt != -* ]]; then
+          if [[ -n "${nextOpt}" && "${nextOpt}" != -* ]]; then
              OPTIND=$((OPTIND + 1))
-             if [ $nextOpt = 'gcc' ]; then
+             if [ "${nextOpt}" = 'gcc' ]; then
                 TestHostCompilerOpt='y';
              fi
           fi
-          if [ $TestHostCompilerOpt = 'n' ]; then
+          if [ "${TestHostCompilerOpt}" = 'n' ]; then
              TestCrossCompilerOpt='y'
           fi
           ;;
@@ -2386,14 +2393,14 @@ while getopts "$OPTSTRING" opt; do
           testCompilerOnlyOpt='n'
 
           # Check for valid install options
-          if [[ $OPTARG =~ ^[Rr]aspbian$ ]]; then 
+          if [[ "${OPTARG}" =~ ^[Rr]aspbian$ ]]; then 
               if [ "${InstallKernelOpt}" = 'y' ];then
                  explainExclusion
                  exit -1
               fi
              InstallRaspbianOpt='y'
           else
-             if [[ $OPTARG =~ ^[Kk]ernel$ ]]; then 
+             if [[ "${OPTARG}" =~ ^[Kk]ernel$ ]]; then 
                 if [ "${InstallRaspbianOpt}" = 'y' ]; then
                    explainExclusion
                    exit -1
@@ -2407,7 +2414,7 @@ while getopts "$OPTSTRING" opt; do
           ;;
           #####################
       S)
-          SavedSourcesPath=$OPTARG
+          SavedSourcesPath="${OPTARG}"
           SavedSourcesPathOpt='y'
 
           ;;
@@ -2426,17 +2433,17 @@ done
 
 
 
-if [ $TestHostCompilerOpt = 'y' ]; then
+if [ "${TestHostCompilerOpt}" = 'y' ]; then
    testHostCompiler
 
-   if [ $TestCompilerOnlyOpt = 'y' ]; then
+   if [ "${TestCompilerOnlyOpt}" = 'y' ]; then
       exit 0
    fi
 fi
 
-if [ $TestCrossCompilerOpt = 'y' ] && [ $TestCompilerOnlyOpt = 'y' ]; then
+if [ "${TestCrossCompilerOpt}" = 'y' ] && [ "${TestCompilerOnlyOpt}" = 'y' ]; then
    testCrossCompiler
-   if [ $TestCompilerOnlyOpt = 'y' ]; then
+   if [ "${TestCompilerOnlyOpt}" = 'y' ]; then
       exit 0
    fi
 fi
