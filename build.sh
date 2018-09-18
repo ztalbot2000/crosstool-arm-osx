@@ -55,7 +55,7 @@ ulimit -n 2048
 # I believe there is a problem with 1.23.0 so for now, this is the default.
 # Ticket #931 has been submitted to address this.
 # It deals with CT_Mirror being undefined
-downloadCrosstoolLatestOpt='y'
+DownloadCrosstoolLatestOpt='y'
 
 #
 # Config. Update below here to suite your specific needs, but all options can be
@@ -132,6 +132,10 @@ CrossToolVersion='crosstool-ng-1.23.0'
 # crosstool-ng .config file
 CrossToolSourceDir='crosstool-ng-src'
 
+# Where CNC tools will be compiled
+LinuxCNCSrcDir='LinuxCNC-src'
+PyCNCSrcDir='PyCNC-src'
+
 # Duplicated to allow altering included ct-ng config files
 CT_TOP_DIR='/Volumes/CrossToolNG'
 CT_TOP_DIR="/Volumes/${Volume}"
@@ -167,6 +171,8 @@ RunCTNGOpt='n'
 RunCTNGOptArg='build'
 InstallRaspbianOpt='n'
 InstallKernelOpt='n'
+AddLinuxCNCOpt='n'
+AddPyCNCOpt='n'
 
 # Fun colour stuff
 KNRM="\x1B[0m"
@@ -1078,7 +1084,7 @@ function buildCTNG()
 
    # The 1.23  archive is busted and does not contain CT_Mirror, until
    # it is fixed, use git Latest
-   if [ "${downloadCrosstoolLatestOpt}" = 'y' ];    then
+   if [ "${DownloadCrosstoolLatestOpt}" = 'y' ];    then
       downloadCrossTool_LATEST
    else
       downloadCrossTool
@@ -1833,18 +1839,18 @@ function checkExt2InstallForOSX()
       [ ! -d '/Library/PreferencePanes/fuse-ext2.prefPane' ]; then
       printf "\n${KRED}As per the previous Fuse-Ext2 instructions ${KNRM}\n"
 
-      cat <<'      EXT2_EOF'
+      printf "${KNRM}\n"
+      printf "   For fuse-ext2 to be able to work properly, the filesystem extension and \n"
+      printf "preference pane must be installed by the root user: \n"
+      printf "\n" 
+      printf "   sudo cp -pR ${BrewHome}/opt/fuse-ext2/System/Library/Filesystems/fuse-ext2.fs /Library/Filesystems/ \n"
+      printf "   sudo chown -R root:wheel /Library/Filesystems/fuse-ext2.fs \n"
+      printf "\n"
+      printf "   sudo cp -pR ${BrewHome}/opt/fuse-ext2/System/Library/PreferencePanes/fuse-ext2.prefPane /Library/PreferencePanes/ \n"
+      printf "   sudo chown -R root:wheel /Library/PreferencePanes/fuse-ext2.prefPane\n"
+      printf "\n"
+      printf "\n"
 
-          For fuse-ext2 to be able to work properly, the filesystem extension and
-          preference pane must be installed by the root user:
- 
-          sudo cp -pR /Volumes/CrossToolNGBase/brew/opt/fuse-ext2/System/Library/Filesystems/fuse-ext2.fs /Library/Filesystems/
-          sudo chown -R root:wheel /Library/Filesystems/fuse-ext2.fs
-
-          sudo cp -pR /Volumes/CrossToolNGBase/brew/opt/fuse-ext2/System/Library/PreferencePanes/fuse-ext2.prefPane /Library/PreferencePanes/
-          sudo chown -R root:wheel /Library/PreferencePanes/fuse-ext2.prefPane
-
-      EXT2_EOF
 
       exit -1
    fi
@@ -1867,13 +1873,13 @@ function updateBrewForEXT2()
       if [ ! -d "${BrewHome}/Caskroom/osxfuse" ]; then
          printf "${KBLU}Installing brew cask osxfuse ${KNRM}\n"
          printf "${KMAG}*** osxfuse will need sudo *** ${KNRM}\n"
-         $("${BrewHome}/bin/brew") cask install osxfuse && true
+         brew cask install osxfuse && true
       fi
 
       if [ ! -d "${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin/mke2fs" ]; then
          printf "${KBLU}Installing brew ext4fuse ${KNRM}\n"
          #${BrewHome}/bin/brew install ext4fuse && true
-         $("${BrewHome}/bin/brew") install --HEAD 'https://raw.githubusercontent.com/yalp/homebrew-core/fuse-ext2/Formula/fuse-ext2.rb' && true
+         brew install --HEAD 'https://raw.githubusercontent.com/yalp/homebrew-core/fuse-ext2/Formula/fuse-ext2.rb' && true
       fi
 
       # Exit immediately if a command exits with a non-zero status
@@ -1903,7 +1909,7 @@ function updateBrewForEXT2()
 
 
 
-function getUSBFlashDeviceForInstallation()
+function getUSBFlashDeviceForRoot()
 {
    printf "\n\n"
    printf "${KBLU}Finding USB flash devices available to write kernel to ${KNRM} ...\n"
@@ -2124,14 +2130,19 @@ function installRaspbianStretchOntoUSBDevice()
 function mountRaspbianRootPartitiion()
 {
    PATH="${PathWithBrewTools}"
-   printf "${KBLU}Mounting Raspbian Partitiions ${KNRM} \n"  
+   printf "${KBLU}Mounting Raspbian root Partitiions with fuse-ext ${KNRM} \n"  
    
-   printf "${KBLU}Creating /Volumes/root mount point ${KNRM} ... " 
-   # mkdir  /Volumes/root
-   printf "${KGRN} done ${KNRM}\n"
+   printf "${KBLU}Checking /Volumes/root already mounted${KNRM} ... " 
+   if [ -d '/Volumes/root/bin' ]; then
+      printf "${KGRN} already mounted ${KNRM}\n"
+      return
+   fi
+   printf "${KGRN} not mounted ${KNRM}\n"
    
-   printf "${KBLU}Mounting /Volumes/root ${KNRM} ... " 
-   fuse-ext2 -o force "/dev/disk${TargetUSBDevice}s2" '/Volumes/root'
+   getUSBFlashDeviceForRoot
+   
+   printf "${KBLU}Mounting /dev/disk${TargetUSBDevice}s2 ${KNRM} as /Volumes/root  ... " 
+   sudo fuse-ext2 -o force "/dev/disk${TargetUSBDevice}s2" '/Volumes/root'
    printf "${KGRN} done ${KNRM}\n"
    
    printf "${KBLU}Checking for /Volumes/root/bin ${KNRM} ... "      
@@ -2141,6 +2152,71 @@ function mountRaspbianRootPartitiion()
       exit -1 
    fi
    printf "${KGRN} done ${KNRM}\n"
+}
+
+function unPackDebFile()
+{
+   PATH="${PathWithBrewTools}"
+   
+   local checkFile="$1" 
+   local pkguRL="$2"
+   local pkg="$3"
+   
+   printf "${KBLU}Checking for file ${KNRM} ${checkFile} ... " 
+   if [ -f "${checkFile}" ]; then
+      printf "${KGRN} found ${KNRM}\n"
+      printf "${KNRM}Package ${pkg} already installed\n"
+      return
+   fi
+   printf "${KYEL} not found ${KNRM} - OK\n"
+   
+   cd ${SavedSourcesPath}
+   
+   printf "${KBLU}Checking for saved package ${pkg} ${KNRM} in ${PWD} ... " 
+   if [ ! -f "${pkg}" ]; then
+      printf "${KYEL} not found ${KGRN} -OK ${KNRM}\n"
+      
+      printf "${KBLU}Fetching  ${pkg} ${KNRM} from ${pkguRL} ... \n"
+      wget -c "${pkguRL}/${pkg}"
+      printf "${KGRN} done ${KNRM}\n"
+     
+   fi
+   printf "${KGRN} found ${KNRM}\n"
+   
+   printf "${KBLU}Copying  ${pkg} ${KNRM} to /tmp ... " 
+   cp "${pkg}" /tmp/
+   printf "${KGRN} done ${KNRM}\n"
+   
+   cd /tmp
+   printf "${KBLU}UnArchiving ${pkg} ${KNRM} in ${PWD} ... " 
+   ar x "${pkg}" 'data.tar.xz'
+   printf "${KGRN} done ${KNRM}\n"
+   
+   printf "${KBLU}Checking for ${KNRM} data.tar.xz ... " 
+   if [ ! -f 'data.tar.xz' ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      exit -1 
+   fi
+   printf "${KGRN} found ${KNRM}\n"
+   
+   printf "${KBLU}Extracting data.tar.xz ${KNRM} to /Volumes/boot/ ... "
+  # tar -xf data.tar.xz -C/Volumes/boot/
+   printf "${KGRN} done ${KNRM}\n"
+   
+   printf "${KBLU}removing /tmp/data.tar.xz and /tmp/${pkg} ${KNRM}  ... "
+   rm '/tmp/data.tar.xz' "/tmp/${pkg}"
+   printf "${KGRN} done ${KNRM}\n"
+   
+}
+
+function addMissingRaspbianPackages()
+{
+   PATH="${PathWithBrewTools}"
+   
+   local pkguRL='http://ftp.us.debian.org/debian/pool/main/s/systemd'
+   local pkg='libudev-dev_239-9_armhf.deb'
+   local checkFile='/usr/include/udev.h'
+   unPackDebFile  "${checkFile}" "${pkguRL}" "${pkg}"
 }
 
 function mountRaspbianBootPartitiion()
@@ -2166,6 +2242,148 @@ function mountRaspbianBootPartitiion()
    
 }
 
+function downloadLinuxCNC()
+{
+   PATH="${PathWithCrossCompiler}"
+   
+   printf "${KBLU}Checking for existing LinuxCNC install ${KNRM} ... " 
+   if [ -f "/Volumes/root/opt/local/linuxcnc" ]; then
+      printf "${KGRN} found ${KNRM}\n"
+      printf "${KNRM} Remove it to start over \n"
+      return
+   fi
+   printf "${KGRN} not found -OK ${KNRM}\n"
+     
+   printf "${KBLU}Checking for existing LinuxCNC src ${KNRM} ${LinuxCNCSrcDir} ... " 
+   if [ -d "${COMPILING_LOCATION}/${LinuxCNCSrcDir}" ]; then
+      printf "${KGRN} found ${KNRM} Using it instead \n"      
+   else
+      printf "${KGRN} not found -OK ${KNRM}\n"
+      
+      printf "${KBLU}Checking for saved LinuxCNC src ${KNRM} ${LinuxCNCSrcDir}.tar.xz ... " 
+      if [ -f "${SavedSourcesPath}/${LinuxCNCSrcDir}.tar.xz" ]; then
+         printf "${KGRN} found -OK ${KNRM}\n"   
+     
+         printf "${KBLU}Extracting saved LinuxCNC src ${KNRM} to ${SavedSourcesPath}/${LinuxCNCSrcDir} ... "      
+         tar -xf "${SavedSourcesPath}/${LinuxCNCSrcDir}.tar.xz" \
+             -C "${COMPILING_LOCATION}"
+             
+         printf "${KGRN} done ${KNRM}\n" 
+      else
+         printf "${KGRN} not found -OK ${KNRM}\n" 
+         
+         printf "${KBLU}Creating ${LinuxCNCSrcDir} ${KNRM} in ${COMPILING_LOCATION} ... " 
+         mkdir "${COMPILING_LOCATION}/${LinuxCNCSrcDir}"
+         printf "${KGRN} done ${KNRM}\n" 
+         
+         printf "${KBLU}Retrieving LinuxCNC src ${KNRM} to ${LinuxCNCSrcDir} ... \n" 
+         git clone --depth=1 'https://github.com/LinuxCNC/linuxcnc.git' \
+             "${COMPILING_LOCATION}/${LinuxCNCSrcDir}"
+           
+         printf "${KBLU}Saving LinuxCNC src ${KNRM}to ${SavedSourcesPath}/${LinuxCNCSrcDir}.tar.xz ... "
+         cd "${COMPILING_LOCATION}"
+         tar -cJf "${SavedSourcesPath}/${LinuxCNCSrcDir}.tar.xz" "${LinuxCNCSrcDir}" 
+         printf "${KGRN} done ${KNRM}\n" 
+      fi
+   fi  
+   
+}
+
+function configureLinuxCNC()
+{
+   cd "${COMPILING_LOCATION}/${LinuxCNCSrcDir}"
+   printf "${KBLU}Configuring LinuxCNC ${KNRM} in ${PWD}\n"
+
+   export PATH="${PathWithCrossCompiler}"
+
+
+   
+
+   export CROSS_PREFIX="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-"
+
+   printf "${KBLU}Checkingo for an existing linux/.config file ${KNRM} ... "
+   if [ -f '.config' ]; then
+      printf "${KYEL} found ${KNRM} \n"
+      printf "${KNRM} make mproper & bcm2709_defconfig  ${KNRM} will not be done \n"
+      printf "${KNRM} to protect previous changes ${KNRM} \n"
+   else
+      printf "${KYEL} not found -OK ${KNRM} \n"
+      printf "${KBLU}Make bcm2709_defconfig ${KNRM} in ${PWD}\n"
+      export CFLAGS='-Wl,-no_pie'
+      export LDFLAGS='-Wl,-no_pie'
+      
+
+      # Since there is no config file then add the cross compiler
+      echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"\n" >> '.config'
+
+   fi
+
+   
+
+   # KBUILD_CFLAGS="-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include" \
+   # KBUILD_LDLAGS="-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/lib" \
+   # ARCH=arm \
+   #   make  -j4 CROSS_COMPILE="${ToolchainName}-" \
+   #     CC="${ToolchainName}-gcc" \
+   #     --include-dir="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/include" \
+   #     zImage 
+   
+   exit -1
+
+}
+
+
+function downloadPyCNC()
+{
+   PATH="${PathWithCrossCompiler}"
+   
+   printf "${KBLU}Checking for existing PyCNC install ${KNRM} ... " 
+   if [ -f "/Volumes/root/opt/local/PyCNC" ]; then
+      printf "${KGRN} found ${KNRM}\n"
+      printf "${KNRM} Remove it to start over \n"
+      return
+   fi
+   printf "${KGRN} not found -OK ${KNRM}\n"
+     
+   printf "${KBLU}Checking for existing PyCNC src ${KNRM} ${PyCNCSrcDir} ... " 
+   if [ -d "${COMPILING_LOCATION}/${PyCNCSrcDir}" ]; then
+      printf "${KGRN} found ${KNRM} Using it instead \n"      
+   else
+      printf "${KGRN} not found -OK ${KNRM}\n"
+      
+      printf "${KBLU}Checking for saved PyCNC src ${KNRM} ${PyCNCSrcDir}.tar.xz ... " 
+      if [ -f "${SavedSourcesPath}/${PyCNCSrcDir}.tar.xz" ]; then
+         printf "${KGRN} found -OK ${KNRM}\n"   
+     
+         printf "${KBLU}Extracting saved PyCNC src ${KNRM} to ${SavedSourcesPath}/${PyCNCSrcDir} ... "      
+         tar -xf "${SavedSourcesPath}/${PyCNCSrcDir}.tar.xz" \
+             -C "${COMPILING_LOCATION}"
+             
+         printf "${KGRN} done ${KNRM}\n" 
+      else
+         printf "${KGRN} not found -OK ${KNRM}\n" 
+         
+         printf "${KBLU}Creating ${PyCNCSrcDir} ${KNRM} in ${COMPILING_LOCATION} ... " 
+         mkdir "${COMPILING_LOCATION}/${PyCNCSrcDir}"
+         printf "${KGRN} done ${KNRM}\n" 
+         
+         printf "${KBLU}Retrieving PyCNC src ${KNRM} to ${PyCNCSrcDir} ... \n" 
+         git clone --depth=1 'https://github.com/Nikolay-Kha/PyCNC' \
+             "${COMPILING_LOCATION}/${PyCNCSrcDir}"
+           
+         printf "${KBLU}Saving PyCNC src ${KNRM}to ${SavedSourcesPath}/${PyCNCSrcDir}.tar.xz ... "
+         cd "${COMPILING_LOCATION}"
+         tar -cJf "${SavedSourcesPath}/${PyCNCSrcDir}.tar.xz" "${PyCNCSrcDir}" 
+         printf "${KGRN} done ${KNRM}\n" 
+      fi
+   fi
+   cd "${COMPILING_LOCATION}/${PyCNCrcDir}"
+   
+   printf "${KGRN} Configuring PyCNC ${KNRM}\n"
+   
+   
+}
+
 function unMountRaspbianBootPartition()
 {
    printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /dev/disk${TargetUSBDevice}s1 ... "
@@ -2174,6 +2392,16 @@ function unMountRaspbianBootPartition()
    
    # No done message required as diskutil provides its own
 }
+
+function unMountRaspbianRootPartition()
+{
+   printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /Volumes/root ... "
+   printf "${KMAG} (sudo required) ${KNRM}"    
+   sudo umount  "/Volumes/root"
+   
+   # No done message required as diskutil provides its own
+}
+
 
 function unMountRaspbianVolume()
 {
@@ -2236,7 +2464,7 @@ function explainExclusion()
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
-OPTSTRING='h?P?c:V:O:f:btT:i:S:'
+OPTSTRING='h?P?c:V:O:f:btT:i:S:a:'
 
 # Getopt #1 - To enforce order
 while getopts "${OPTSTRING}" opt; do
@@ -2259,7 +2487,7 @@ while getopts "${OPTSTRING}" opt; do
           #####################
       c)
           # Flag that something else was wanted to be done first
-          testCompilerOnlyOpt='n'
+          TestCompilerOnlyOpt='n'
 
           if [[ "${OPTARG}" =~ ^[Bb]rew$ ]]; then 
              cleanBrew
@@ -2322,7 +2550,7 @@ while getopts "${OPTSTRING}" opt; do
           #####################
       b)
           # Flag that something else was wanted to be done first
-          testCompilerOnlyOpt='n'
+          TestCompilerOnlyOpt='n'
 
           # Check next positional parameter
 
@@ -2390,7 +2618,7 @@ while getopts "${OPTSTRING}" opt; do
           #####################
        i)
           # Flag that something else was wanted to be done first
-          testCompilerOnlyOpt='n'
+          TestCompilerOnlyOpt='n'
 
           # Check for valid install options
           if [[ "${OPTARG}" =~ ^[Rr]aspbian$ ]]; then 
@@ -2417,6 +2645,26 @@ while getopts "${OPTSTRING}" opt; do
           SavedSourcesPath="${OPTARG}"
           SavedSourcesPathOpt='y'
 
+          ;;
+          #####################
+       a)
+          # Flag that something else was wanted to be done first
+          TestCompilerOnlyOpt='n'
+          
+          if [[ ! "${OPTARG}" =~ ^[Ll]inuxCNC$ ]] &&
+             [[ ! "${OPTARG}" =~ ^[Pp]yCNC$ ]]
+          then
+             printf "${KRED}unknown option -a ${KNRM} ${OPTARG} \n"
+             exit -1
+          fi
+           
+          # Check for valid install options
+          if [[ "${OPTARG}" =~ ^[Ll]inuxCNC$ ]]; then              
+             AddLinuxCNCOpt='y'
+          fi
+          if [[ "${OPTARG}" =~ ^[Pp]yCNC$ ]]; then 
+             AddPyCNCOpt='y'               
+          fi
           ;;
           #####################
       \?)
@@ -2512,8 +2760,25 @@ then
        installRaspbianKernelToBootVolume
        
        unMountRaspbianBootPartition
-   fi
+    fi
+    
+fi 
+ 
+if [ "${AddLinuxCNCOpt}" = 'y' ]; then
    
+   updateBrewForEXT2    
+   
+   mountRaspbianRootPartitiion   
+   
+   addMissingRaspbianPackages
+   
+   downloadLinuxCNC
+   
+   configureLinuxCNC
+fi
+   
+if [ "${AddPyCNCOpt}" = 'y' ]; then
+   w=1
 fi
 
 
