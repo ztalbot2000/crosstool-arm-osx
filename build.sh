@@ -1245,7 +1245,6 @@ function downloadAndBuildzlibForTarget()
 
 }
 
-
 function downloadElfLibrary()
 {
    local elfLibURL='https://github.com/WolfgangSt/libelf.git'
@@ -1415,7 +1414,6 @@ TEST_PIE_EOF
    /tmp/PIEWorld
    rc=$?
 }
-
 
 function testHostgcc()
 {
@@ -1641,6 +1639,7 @@ function downloadRaspbianKernel()
    fi
 
 }
+
 function downloadElfHeaderForOSX()
 {
    local ElfHeaderFile='/usr/local/include/elf.h'
@@ -1819,10 +1818,23 @@ function installRaspbianKernelToBootVolume()
    cp "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux/arch/arm/boot/zImage" "${BootPath}/kernel7.img"
    printf "${KGRN} done ${KNRM}\n"
 }
+function compileFuseFromSource()
+{
+   # Version built was fuse-ext2 0.0.9 29
+   # git command for fuse from source
+   git clone --depth=1 https://github.com/alperakcan/fuse-ext2.git
+   
+   # keep this command
+   CFLAGS="--std=gnu89 -D__FreeBSD__=10 -idirafter/usr/local/include -idirafter/usr/local/include/osxfuse/ -idirafter/Volumes/ctBase/brew/opt/e2fsprogs/include" LDFLAGS="-L/usr/local/opt/glib -L/usr/local/lib -L/Volumes/ctBase/brew/opt/e2fsprogs/lib" ./configure -prefix=/Volumes/ctBase/brew
 
+
+}
 function checkExt2InstallForOSX()
 {
-
+   # Interesting note.  I believe brew installed osxfuse in 
+   # /usr/local/include/osxfuse and /usr/local/lib
+   # anyway.  Must check this
+   
    printf "${KBLU}Checking for Ext2 tools ${KNRM} ... "
    if [ ! -d "${BrewHome}/Caskroom/osxfuse" ] &&
       [ ! -d "${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin/mke2fs" ]; then
@@ -1906,8 +1918,6 @@ function updateBrewForEXT2()
    checkExt2InstallForOSX
 
 }
-
-
 
 function getUSBFlashDeviceForRoot()
 {
@@ -2023,6 +2033,114 @@ function getUSBFlashDeviceForRoot()
          
 }
 
+function mountRaspbianBootPartitiion()
+{
+   PATH="${PathWithBrewTools}"
+   
+   printf "${KBLU}Mounting /Volumes/boot ${KNRM} \n" 
+   
+   # Mounts boot without complaints about root
+   # Mounts with nice message
+   /usr/sbin/diskutil mount "/dev/disk${TargetUSBDevice}s1"
+   
+   # No done message required as diskutil provides its own
+   
+   printf "${KBLU}Checking for /Volumes/boot ${KNRM} ... "      
+   if [ ! -d '/Volumes/boot' ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      exit -1 
+   fi
+   printf "${KGRN} done ${KNRM}\n"
+   
+   
+}
+
+
+function mountRaspbianRootPartitiion()
+{
+   local RW='n'
+   RW="$1"
+   
+   PATH="${PathWithBrewTools}"
+   printf "${KBLU}Mounting Raspbian root Partitiions with fuse-ext ${KNRM} \n"  
+   
+   printf "${KBLU}Checking /Volumes/root already mounted${KNRM} ... " 
+   if [ -d '/Volumes/root/bin' ]; then
+      printf "${KGRN} already mounted ${KNRM}\n"
+      return
+   fi
+   printf "${KGRN} not mounted ${KNRM}\n"
+   
+   getUSBFlashDeviceForRoot
+   
+   if [ "${RW}" = 'y' ]; then
+      printf "${KBLU}Mounting /dev/disk${TargetUSBDevice}s2 (RW+) ${KNRM} as /Volumes/root ... " 
+      sudo fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o rw+
+   else
+      printf "${KBLU}Mounting /dev/disk${TargetUSBDevice}s2 (Read Only) ${KNRM} as /Volumes/root ... " 
+      sudo fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root'
+   fi
+   printf "${KGRN} done ${KNRM}\n"
+   
+   printf "${KBLU}Checking for /Volumes/root/bin ${KNRM} ... "      
+   if [ ! -d '/Volumes/root/bin' ]; then
+      printf "${KRED} not found ${KNRM}\n"
+      printf "${KRED} Raspbian not mounted ${KNRM}\n"
+      exit -1 
+   fi
+   printf "${KGRN} done ${KNRM}\n"
+}
+
+function unMountRaspbianBootPartition()
+{
+   printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /dev/disk${TargetUSBDevice}s1 ... "
+       
+   diskutil unmount  "/dev/disk${TargetUSBDevice}s1"
+   
+   # No done message required as diskutil provides its own
+}
+
+function unMountRaspbianRootPartition() 
+{
+
+   printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /Volumes/root ... "
+   printf "${KMAG} (sudo required) ${KNRM}"
+   # UnMounted root if root was only mounted    
+   sudo umount  "/Volumes/root"
+   
+   # No done message required as diskutil provides its own
+}
+
+function mountRaspbianVolume() 
+{
+
+   printf "${KBLU}Mounting  ${KNRM} /dev/disk${TargetUSBDevice} ... "
+   # Only mounts boot
+   # Gives error message mounting root
+   diskutil mountDisk  "/dev/disk${TargetUSBDevice}"
+   
+   # No done message required as diskutil provides its own
+}
+
+function unMountRaspbianVolume() 
+{
+
+   printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /dev/disk${TargetUSBDevice} ... "
+   # Does not Unmounted root if only root mounted
+   diskutil unmountDisk  "/dev/disk${TargetUSBDevice}"
+   
+   # No done message required as diskutil provides its own
+}
+
+function ejectRaspbianDisk()
+{
+   printf "${KBLU}Ejecting Raspbian Disk ${KNRM} ... "  
+   
+   hdiutil eject  "/dev/disk${TargetUSBDevice}"
+   
+   # No done message required as hdiutil provides its own
+}
+
 function downloadRaspbianStretch()
 {
    local RaspbianStretchURL="http://director.downloads.raspberrypi.org/raspbian/images/raspbian-2018-06-29/${RaspbianStretchFile}.zip"
@@ -2073,85 +2191,6 @@ function downloadRaspbianStretch()
    
    printf "${KGRN} done ${KNRM}\n"     
       
-}
-
-function installRaspbianStretchOntoUSBDevice()
-{
-   printf "${KBLU}Installing ${RaspbianStretchFile}.img ${KNRM} \n"
-   
-   cd "${SavedSourcesPath}"
-
-   printf "${KBLU}Checking for ${KNRM} ${RaspbianStretchFile}.img ... "
-   if [ -f "${RaspbianStretchFile}.img" ]; then
-      printf "${KGRN} found ${KNRM}\n"   
-   else
-      printf "${KRED} not found ${KNRM}\n"
-      printf "${KRED} This should have already been downloaded and unzipped. ${KNRM}\n"
-      exit -1
-   fi
-   
-   unMountRaspbianVolume
-    
-   printf "${KBLU}Writing ${RaspbianStretchFile}.img ${KNRM} to /dev/disk${TargetUSBDevice} ... Logging to /tmp/dd.log\n"
-   printf "\r${KNRM}Writing ... ${RaspbianStretchFile}.img using command: \n"  
-   printf "\r${KNRM}sudo dd if=${RaspbianStretchFile}.img of=/dev/disk${TargetUSBDevice} bs=1m \n"    
-   # Done this way to put dd in background as it takes a while
-   # read -s -p "Password:" -r
-    
-   printf "\n${KYEL}Starting in ${KNRM} 5"; sleep 1
-   printf "\r${KYEL}Starting in ${KNRM} 4"; sleep 1
-   printf "\r${KYEL}Starting in ${KNRM} 3"; sleep 1
-   printf "\r${KYEL}Starting in ${KNRM} 2"; sleep 1
-   printf "\r${KYEL}Starting in ${KNRM} 1"; sleep 1
-   printf "\r                   \n"
-   
-   # Do not Exit immediately if a command exits with a non-zero status.
-   set +e
-   
-   # echo ${REPLY} | sudo -kS dd if="${RaspbianStretchFile}.img" of="/dev/disk${TargetUSBDevice}" bs=1m > /tmp/dd.og 2>&1 &
-   sudo -sk dd if="${RaspbianStretchFile}.img" of="/dev/disk${TargetUSBDevice}" bs=1m > /tmp/dd.log  &
-   sleep 20
-   printf "\n\n"
-   
-   pid="$!"
-   waitForPid "${pid}"
-
-   # Exit immediately if a command exits with a non-zero status
-   set -e
-
-   if [ "${rc}" != '0' ]; then
-      printf "${KRED}Error : [${rc}] ${KNRM} dd failed. Check the log for details \n"
-      exit $rc
-   fi   
-   
-   printf "${KGRN} done ${KNRM}\n"  
-}
-
-function mountRaspbianRootPartitiion()
-{
-   PATH="${PathWithBrewTools}"
-   printf "${KBLU}Mounting Raspbian root Partitiions with fuse-ext ${KNRM} \n"  
-   
-   printf "${KBLU}Checking /Volumes/root already mounted${KNRM} ... " 
-   if [ -d '/Volumes/root/bin' ]; then
-      printf "${KGRN} already mounted ${KNRM}\n"
-      return
-   fi
-   printf "${KGRN} not mounted ${KNRM}\n"
-   
-   getUSBFlashDeviceForRoot
-   
-   printf "${KBLU}Mounting /dev/disk${TargetUSBDevice}s2 ${KNRM} as /Volumes/root  ... " 
-   sudo fuse-ext2 -o force "/dev/disk${TargetUSBDevice}s2" '/Volumes/root'
-   printf "${KGRN} done ${KNRM}\n"
-   
-   printf "${KBLU}Checking for /Volumes/root/bin ${KNRM} ... "      
-   if [ ! -d '/Volumes/root/bin' ]; then
-      printf "${KRED} not found ${KNRM}\n"
-      printf "${KRED} Raspbian not mounted ${KNRM}\n"
-      exit -1 
-   fi
-   printf "${KGRN} done ${KNRM}\n"
 }
 
 function unPackDebFile()
@@ -2219,27 +2258,56 @@ function addMissingRaspbianPackages()
    unPackDebFile  "${checkFile}" "${pkguRL}" "${pkg}"
 }
 
-function mountRaspbianBootPartitiion()
+function installRaspbianStretchOntoUSBDevice()
 {
-   PATH="${PathWithBrewTools}"
+   printf "${KBLU}Installing ${RaspbianStretchFile}.img ${KNRM} \n"
    
-   printf "${KBLU}Mounting /Volumes/boot ${KNRM} ... " 
-   
-   
-   /usr/sbin/diskutil mount "/dev/disk${TargetUSBDevice}s1"
-   
-   printf "${KGRN} done ${KNRM}\n"
-   
-   
-   
-   printf "${KBLU}Checking for /Volumes/boot ${KNRM} ... "      
-   if [ ! -d '/Volumes/boot' ]; then
+   cd "${SavedSourcesPath}"
+
+   printf "${KBLU}Checking for ${KNRM} ${RaspbianStretchFile}.img ... "
+   if [ -f "${RaspbianStretchFile}.img" ]; then
+      printf "${KGRN} found ${KNRM}\n"   
+   else
       printf "${KRED} not found ${KNRM}\n"
-      exit -1 
+      printf "${KRED} This should have already been downloaded and unzipped. ${KNRM}\n"
+      exit -1
    fi
-   printf "${KGRN} done ${KNRM}\n"
    
+   unMountRaspbianVolume
+    
+   printf "${KBLU}Writing ${RaspbianStretchFile}.img ${KNRM} to /dev/disk${TargetUSBDevice} ... Logging to /tmp/dd.log\n"
+   printf "\r${KNRM}Writing ... ${RaspbianStretchFile}.img using command: \n"  
+   printf "\r${KNRM}sudo dd if=${RaspbianStretchFile}.img of=/dev/disk${TargetUSBDevice} bs=1m \n"    
+   # Done this way to put dd in background as it takes a while
+   # read -s -p "Password:" -r
+    
+   printf "\n${KYEL}Starting in ${KNRM} 5"; sleep 1
+   printf "\r${KYEL}Starting in ${KNRM} 4"; sleep 1
+   printf "\r${KYEL}Starting in ${KNRM} 3"; sleep 1
+   printf "\r${KYEL}Starting in ${KNRM} 2"; sleep 1
+   printf "\r${KYEL}Starting in ${KNRM} 1"; sleep 1
+   printf "\r                   \n"
    
+   # Do not Exit immediately if a command exits with a non-zero status.
+   set +e
+   
+   # echo ${REPLY} | sudo -kS dd if="${RaspbianStretchFile}.img" of="/dev/disk${TargetUSBDevice}" bs=1m > /tmp/dd.og 2>&1 &
+   sudo -sk dd if="${RaspbianStretchFile}.img" of="/dev/disk${TargetUSBDevice}" bs=1m > /tmp/dd.log  &
+   sleep 20
+   printf "\n\n"
+   
+   pid="$!"
+   waitForPid "${pid}"
+
+   # Exit immediately if a command exits with a non-zero status
+   set -e
+
+   if [ "${rc}" != '0' ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} dd failed. Check the log for details \n"
+      exit $rc
+   fi   
+   
+   printf "${KGRN} done ${KNRM}\n"  
 }
 
 function downloadLinuxCNC()
@@ -2332,7 +2400,6 @@ function configureLinuxCNC()
 
 }
 
-
 function downloadPyCNC()
 {
    PATH="${PathWithCrossCompiler}"
@@ -2384,43 +2451,6 @@ function downloadPyCNC()
    
 }
 
-function unMountRaspbianBootPartition()
-{
-   printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /dev/disk${TargetUSBDevice}s1 ... "
-       
-   diskutil unmount  "/dev/disk${TargetUSBDevice}s1"
-   
-   # No done message required as diskutil provides its own
-}
-
-function unMountRaspbianRootPartition()
-{
-   printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /Volumes/root ... "
-   printf "${KMAG} (sudo required) ${KNRM}"    
-   sudo umount  "/Volumes/root"
-   
-   # No done message required as diskutil provides its own
-}
-
-
-function unMountRaspbianVolume()
-{
-   printf "${KBLU}Unmounting (Not ejecting) ${KNRM} /dev/disk${TargetUSBDevice} ... "
-       
-   diskutil unmountDisk  "/dev/disk${TargetUSBDevice}"
-   
-   # No done message required as diskutil provides its own
-}
-
-function ejectRaspbianDisk()
-{
-   printf "${KBLU}Ejecting Raspbian Disk ${KNRM} ... "  
-   
-   hdiutil eject  "/dev/disk${TargetUSBDevice}"
-   
-   # No done message required as hdiutil provides its own
-}
-
 function updateVariablesForChangedOptions()
 {
    # Base gets changed based on Volume name given
@@ -2449,7 +2479,7 @@ function updateVariablesForChangedOptions()
    
    PathWithBrewTools="${BrewHome}/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}" 
    
-   PathWithCrossCompiler="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${BrewHome}/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}" 
+   PathWithCrossCompiler="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${PathWithBrewTools}" 
    
 }
 function explainExclusion()
@@ -2475,7 +2505,9 @@ while getopts "${OPTSTRING}" opt; do
           ;;
           #####################
       P)
-          PATH="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${BrewHome}/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:/Volumes/${VolumeBase}/ctng/bin:${PATH}"
+          updateVariablesForChangedOptions
+          
+          PATH="${PathWithCrossCompiler}"
   
           printf "${KNRM}PATH=${PATH} \n"
           printf "${KNRM}KBUILD_CFLAGS=-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include \n"
@@ -2768,7 +2800,7 @@ if [ "${AddLinuxCNCOpt}" = 'y' ]; then
    
    updateBrewForEXT2    
    
-   mountRaspbianRootPartitiion   
+   mountRaspbianRootPartitiion  'n'
    
    addMissingRaspbianPackages
    
@@ -2778,7 +2810,7 @@ if [ "${AddLinuxCNCOpt}" = 'y' ]; then
 fi
    
 if [ "${AddPyCNCOpt}" = 'y' ]; then
-   w=1
+   w=42
 fi
 
 
