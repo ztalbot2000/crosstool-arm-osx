@@ -233,6 +233,8 @@ cat <<'HELP_EOF'
      -b raspbian>    - Download and build Raspbian.
      -i raspbian     - Install Raspbian Stretch and kernel on flash device.
      -i kernel       - Install Raspbian kernel on flash device.
+     -a LinuxCNC     - Add LinuxCNC to Raspbian.
+     -a PyCNC        - Add PyCNC to Raspbian.
      -t              - After the build, run a Hello World test on it.
      -t gcc          - test the gcc in this scripts path.
      
@@ -271,7 +273,7 @@ function waitForPid()
 {
    local pid=$1
    local spindleCount=0
-   local spindleArray=('|' '/' '-' '\')
+   local spindleArray=('|' '/' '-' "\\")
    local STARTTIME=$(date +%s)
 
    while ps -p "${pid}" >/dev/null; do
@@ -436,7 +438,7 @@ function createCaseSensitiveVolume()
     printf "${KBLU}Creating volume mounted as ${KNRM} ${VolumeDir} ...\n"
     if [ -d "${VolumeDir}" ]; then
        printf "${KYEL}WARNING${KNRM}: Volume already exists: ${VolumeDir} \n"      
-       return;
+       return
     fi
 
    if [ -f "${Volume}.sparseimage" ]; then
@@ -496,7 +498,7 @@ function createSrcDirForCompilation()
 #
 # for Raspbian tools - libelf ncurses gcc
 # for xconfig - QT   (takes hours). That would be up to you.
-BrewTools="coreutils findutils libtool pkg-config pcre grep ncurses gettext xz gnu-sed gawk binutils gmp isl mpc help2man autoconf automake bison bash wget sha2 libelf texinfo"
+BrewTools="m4 coreutils findutils libtool pkg-config pcre grep ncurses gettext xz gnu-sed gawk binutils gmp isl mpc help2man autoconf automake bison bash wget sha2 libelf texinfo"
 
 function buildBrewTools()
 {
@@ -570,7 +572,7 @@ function buildBrewTools()
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   printf "${KBLU}Checking for ${KNRM} $BrewHome/bin/gsha512sum ${KNRM} ... "
+   printf "${KBLU}Checking for ${KNRM} ${BrewHome}/bin/gsha512sum ${KNRM} ... "
    if [ ! -f "${BrewHome}/bin/gsha512sum" ]; then
       printf "${KRED} not found ${KNRM}\n"
       exit 1
@@ -705,7 +707,7 @@ function buildBinutilsForHost()
 
       if [ "${rc}" != '0' ]; then
          printf "${KRED}Error : [${rc}] ${KNRM} extract failed. Check the log for details\n"
-         exit $rc
+         exit ${rc}
       fi
       printf "${KGRN} done ${KNRM}\n"
    fi
@@ -727,7 +729,7 @@ function buildBinutilsForHost()
 
    if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
-      exit $rc
+      exit ${rc}
    fi
    printf "${KGRN} done ${KNRM}\n"
 
@@ -745,7 +747,7 @@ function buildBinutilsForHost()
 
    if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details\n"
-      exit $rc
+      exit ${rc}
    fi
    printf "${KGRN} done ${KNRM}\n"
 
@@ -763,7 +765,7 @@ function buildBinutilsForHost()
 
    if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details\n"
-      exit $rc
+      exit ${rc}
    fi
    printf "${KGRN} done ${KNRM}\n"
 
@@ -802,7 +804,7 @@ function downloadCrossTool_LATEST()
    fi
 
    local CrossToolUrl="https://github.com/crosstool-ng/crosstool-ng.git"
-   CrossToolArchive=${CrossToolVersion}_latest.tar.xz
+   CrossToolArchive="${CrossToolVersion}_latest.tar.xz"
    
    if [ -f "${SavedSourcesPath}/${CrossToolArchive}" ]; then
       printf "   -Using existing archive ${CrossToolArchive} ${KNRM}\n"
@@ -960,7 +962,7 @@ function compileCrosstool()
 
    if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details \n"
-      exit $rc
+      exit ${rc}
    fi
    printf "${KGRN} Configure of crosstool-ng is done ${KNRM}\n"
 
@@ -978,7 +980,7 @@ function compileCrosstool()
 
    if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details \n"
-      exit $rc
+      exit ${rc}
    fi
    printf "${KGRN} done ${KNRM}\n"
 
@@ -996,7 +998,7 @@ function compileCrosstool()
 
    if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details \n"
-      exit $rc
+      exit ${rc}
    fi
    printf "${KGRN}Compilation of ct-ng is Complete ${KNRM}\n"
 }
@@ -1084,7 +1086,7 @@ function buildCTNG()
 
    # The 1.23  archive is busted and does not contain CT_Mirror, until
    # it is fixed, use git Latest
-   if [ "${DownloadCrosstoolLatestOpt}" = 'y' ];    then
+   if [ "${DownloadCrosstoolLatestOpt}" = 'y' ]; then
       downloadCrossTool_LATEST
    else
       downloadCrossTool
@@ -1206,7 +1208,7 @@ function downloadAndBuildzlibForTarget()
 
     if [ "${rc}" != '0' ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} configure failed. Check the log for details \n"
-       exit $rc
+       exit ${rc}
     fi
 
     printf "${KBLU} Building zlib ${KNRM} Logging to /tmp/zlib_build.log \n"
@@ -1223,7 +1225,7 @@ function downloadAndBuildzlibForTarget()
 
     if [ "${rc}" != '0' ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} build failed. Check the log for details \n"
-       exit $rc
+       exit ${rc}
     fi
 
     printf "${KBLU} Installing zlib ${KNRM} Logging to /tmp/zlib_install.log \n"
@@ -1240,7 +1242,7 @@ function downloadAndBuildzlibForTarget()
 
     if [ "${rc}" != '0' ]; then
        printf "${KRED}Error : [${rc}] ${KNRM} install failed. Check the log for details \n"
-       exit $rc
+       exit ${rc}
     fi
 
 }
@@ -1443,9 +1445,9 @@ HELLO_WORLD_EOF
 
    g++ /tmp/HelloWorld.cpp -o /tmp/HelloWorld
    rc=$?
-   if [ ${rc} != '0' ]; then
+   if [ "${rc}" != '0' ]; then
       printf "${KRED} failed ${KNRM}\n"
-      return ${rc}
+      return "${rc}"
    fi
    printf "${KGRN} passed ${KNRM}\n"
 
@@ -1575,7 +1577,7 @@ function downloadRaspbianKernel()
 
          if [ "${rc}" != '0' ]; then
             printf "${KRED}Error : [${rc}] ${KNRM} extract failed. \n"
-            exit $rc
+            exit ${rc}
          fi
  
          printf "${KGRN} done ${KNRM}\n"
@@ -1632,7 +1634,7 @@ function downloadRaspbianKernel()
 
          if [ "${rc}" != '0' ]; then
             printf "${KRED}Error : [${rc}] ${KNRM} save failed. Check the log for details \n"
-            exit $rc
+            exit ${rc}
          fi
          printf "${KGRN} done ${KNRM}\n"
       fi
@@ -1866,7 +1868,24 @@ function checkExt2InstallForOSX()
 
       exit -1
    fi
-
+   printf "${KGRN} OK ${KNRM}\n"
+   
+   printf "${KBLU}Checking that /Library/Filesystems/fuse-ext2.fs is the same ${KNRM} ... "
+   diff -r '/Library/Filesystems/fuse-ext2.fs' "${BrewHome}/opt/fuse-ext2/System/Library/Filesystems/fuse-ext2.fs"
+   rc=$?
+   if [ "${rc}" != '0' ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} Differs from ${BrewHome}/opt/fuse-ext2/System \n"
+      exit ${rc}
+   fi
+   printf "${KGRN} OK ${KNRM}\n"
+   
+   printf "${KBLU}Checking that /Library/PreferencePanes/fuse-ext2.prefPane is the same ${KNRM} ... "
+   diff -r '/Library/PreferencePanes/fuse-ext2.prefPane' "${BrewHome}/opt/fuse-ext2/System/Library/PreferencePanes/fuse-ext2.prefPane" 
+   rc=$?
+   if [ "${rc}" != '0' ]; then
+      printf "${KRED}Error : [${rc}] ${KNRM} Differs from ${BrewHome}/opt/fuse-ext2/System \n"
+      exit ${rc}
+   fi
    printf "${KGRN} OK ${KNRM}\n"
    
 }
@@ -1890,7 +1909,12 @@ function updateBrewForEXT2()
 
       if [ ! -d "${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin/mke2fs" ]; then
          printf "${KBLU}Installing brew ext4fuse ${KNRM}\n"
-         #${BrewHome}/bin/brew install ext4fuse && true
+         # ext2fuse version in brew is 0.8.1
+         # this also downloads e2fsprogs 1.44.3
+         # ${BrewHome}/bin/brew install ext4fuse && true
+         
+         # ext2fuse --head version is 0.0.9 29
+         # this also downloads e2fsprogs 1.44.3
          brew install --HEAD 'https://raw.githubusercontent.com/yalp/homebrew-core/fuse-ext2/Formula/fuse-ext2.rb' && true
       fi
 
@@ -2186,7 +2210,7 @@ function downloadRaspbianStretch()
 
    if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} unzip failed. Check the log for details\n"
-      exit $rc
+      exit ${rc}
    fi
    
    printf "${KGRN} done ${KNRM}\n"     
@@ -2209,7 +2233,7 @@ function unPackDebFile()
    fi
    printf "${KYEL} not found ${KNRM} - OK\n"
    
-   cd ${SavedSourcesPath}
+   cd "${SavedSourcesPath}"
    
    printf "${KBLU}Checking for saved package ${pkg} ${KNRM} in ${PWD} ... " 
    if [ ! -f "${pkg}" ]; then
@@ -2304,7 +2328,7 @@ function installRaspbianStretchOntoUSBDevice()
 
    if [ "${rc}" != '0' ]; then
       printf "${KRED}Error : [${rc}] ${KNRM} dd failed. Check the log for details \n"
-      exit $rc
+      exit ${rc}
    fi   
    
    printf "${KGRN} done ${KNRM}\n"  
@@ -2477,7 +2501,7 @@ function updateVariablesForChangedOptions()
    export HOMEBREW_CACHE="${SavedSourcesPath}"
    export HOMEBREW_LOG_PATH="${BrewHome}/brew_logs"
    
-   PathWithBrewTools="${BrewHome}/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:/Volumes/${VolumeBase}/brew/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}" 
+   PathWithBrewTools="${BrewHome}/bin:${BrewHome}/opt/m4/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:${BrewHome}/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}" 
    
    PathWithCrossCompiler="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${PathWithBrewTools}" 
    
@@ -2654,7 +2678,7 @@ while getopts "${OPTSTRING}" opt; do
 
           # Check for valid install options
           if [[ "${OPTARG}" =~ ^[Rr]aspbian$ ]]; then 
-              if [ "${InstallKernelOpt}" = 'y' ];then
+              if [ "${InstallKernelOpt}" = 'y' ]; then
                  explainExclusion
                  exit -1
               fi
@@ -2753,7 +2777,7 @@ buildBrewTools
 #  PIE disabled. Absolute addressing (perhaps -mdynamic-no-pic)
 # Trying to build them first before gcc, causes ld not
 # to be built.
-#buildBinutilsForHost
+# buildBinutilsForHost
 
 buildCTNG
 
