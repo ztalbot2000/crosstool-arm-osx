@@ -172,7 +172,8 @@ RunCTNGOptArg='build'
 InstallRaspbianOpt='n'
 InstallKernelOpt='n'
 AddLinuxCNCOpt='n'
-AddPyCNCOpt='n'
+AddPyCNCOpt='n'    
+BuildGCCwithBrewOpt='n'
 
 # Fun colour & cursor stuff
 
@@ -185,7 +186,7 @@ TGRN=$(tput setaf 2)
 TYEL=$(tput setaf 3)
 TBLU=$(tput setaf 4)
 TMAG=$(tput setaf 5)
-# TCYN=$(tput setaf 6)
+TCYN=$(tput setaf 6)
 # TWHT=$(tput setaf 7)
 
 
@@ -221,9 +222,9 @@ cat <<'HELP_EOF'
                        -f <configFile>
      -S <path>       - A path where sources can be retrieved from. It does not
                        get removed with any clean option. The  default is
-                       <Volume>Base/sources
+                       <Volume>Base/sources.
      -c Brew         - Remove all installed Brew tools.
-     -c ct-ng        - Run make clean in crosstool-ng path
+     -c ct-ng        - Run make clean in crosstool-ng path.
      -c realClean    - Unmounts the image and removes it. This destroys EVERYTHING!
      -c raspbian     - run make clean in the RaspbianSrcDir.
      -f <configFile> - The name and path of the ct-ng config file to use.
@@ -243,11 +244,11 @@ cat <<'HELP_EOF'
      -t gcc          - test the gcc in this scripts path.
  
                        The product of which would be: armv8-rpi3-linux-gnueabihf-gcc ...
-     -P              - Just Print the PATH variable
+     -P              - Just Print the PATH variable.
      -h              - This menu.
      -help
      "none"          - Go for it all if no options given. it will always try to
-                       continue where it left off
+                       continue where it left off.
 
 HELP_EOF
 }
@@ -278,7 +279,8 @@ function waitForPid()
    local pid=$1
    local spindleCount=0
    local spindleArray=('|' '/' '-' "\\")
-   local STARTTIME
+   local colorSpindleArray=("${TGRN}" "${TRED}" "${TBLU}" "${TCYN}")
+   local STARTTIME SECONDS MM M H
    STARTTIME=$(date +%s)
 
    while ps -p "${pid}" >/dev/null; do
@@ -291,13 +293,15 @@ function waitForPid()
       ((H = MM / 60))
       echo -n "${TCR}${TNRM}[ "
       [ "$H" -gt "0" ] && printf "%02d:" $H
-      printf "%02d:%02d ] ${TGRN}%s${TNRM}" $M $S "${spindleArray[$spindleCount]}"
+      printf "%02d:%02d ] ${TGRN}%s%s${TNRM}" $M $S "${colorSpindleArray[$spindleCount]}" "${spindleArray[$spindleCount]}"
       spindleCount=$((spindleCount + 1))
       if [[ ${spindleCount} -eq ${#spindleArray[*]} ]]; then
          spindleCount=0
       fi
    done
-   echo "${TNRM}"
+   # When done, overwite the spindle
+   echo -n "${TCR}${TNRM}[ "
+   printf "%02d:%02d ] " $M $S  
 
    # Get the true return code of the process
    wait "${pid}"
@@ -394,7 +398,7 @@ function createCaseSensitiveVolumeBase()
    echo "${TBLU}Creating 4G volume for tools mounted as ${CT_TOP_DIR_BASE} ${TNRM} ..."
     if [  -d "${CT_TOP_DIR_BASE}" ]; then
        echo "${TYEL}WARNING${TNRM}: Volume already exists: ${CT_TOP_DIR_BASE} ${TNRM}"
-       return;
+       return
     fi
 
    if [ -f "${VolumeBase}.sparseimage" ]; then
@@ -428,7 +432,7 @@ function createTarBallSourcesDir()
           echo "${TRED} not found - ${TNRM} Cannot continue when saved sources path does not exist: ${SavedSourcesPathOpt}"
           exit -1
        fi
-       echo "${TYEL} not found -OK ${TNRM}"
+       echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
        echo -n "${TNRM}Creating ${TNRM} ${SavedSourcesPath} ... "
        mkdir "${SavedSourcesPath}"
        echo "${TGRN} done ${TNRM}"
@@ -480,6 +484,77 @@ function createSrcDirForCompilation()
    fi
 }
 
+function softLinkBrewGTools
+{                           
+
+    local cwd
+    cwd="${PWD}"
+    cd "${BrewHome}/bin"
+    for fn in g* ; do     
+      if [ "${fn}" = 'grep' ]; then continue; fi   
+      if [ "${fn}" = 'gar' ]; then continue; fi 
+      if [ "${fn}" = 'groups' ]; then continue; fi  
+      if [[ "${fn}" =~ ^gawk* ]]; then continue; fi
+      if [ "${fn}" = 'gettext.sh' ]; then continue; fi
+      if [ "${fn}" = 'gettextize' ]; then continue; fi
+      	
+
+      if [ "${fn}" = 'granlib' ]; then continue; fi  # Fails ncurses for build of gcc cross compiler
+      if [ "${fn}" = 'gstrip' ]; then continue; fi  # Fails ncurses for host of gcc cross compiler
+      	
+      local fnWithoutG=${fn:1:999}
+     	if [ ! -L "${fnWithoutG}" ]; then   
+     	   echo   linking  "${fn}" "${fnWithoutG}"
+    		 ln -s -f "${fn}" "${fnWithoutG}"
+    	fi
+    done
+    
+    cd "${cwd}"
+}     
+
+function installBrewTool()
+{         
+   local tool="$1"
+   local toolOptions="$2" 
+   local doSoftLink="$3" 
+   local toolIsForGCCBrew="$4"  
+   local pid   
+   
+   if [ "${toolIsForGCCBrew}"  = 'y' ] &&
+   	  [ "${BuildGCCwithBrewOpt}" = 'n' ]
+   then  
+   	  echo "Skipping ${tool} as BuildGCCwithBrewOpt=n"
+   	  return
+   fi            
+   echo "${TBLU}Installing brew tool ${tool} ${TNRM} .... Logging to /tmp/${tool}_install.log"   
+   
+   # Do not Exit immediately if a command exits with a non-zero status.    
+   set +e                                                                 	
+   
+   if [ -z "${toolOptions}" ]; then                                                            	
+   	 brew install "${tool}"  --build-from-source  > "/tmp/${tool}_install.log" 2>&1 & 
+   	 pid="$!"	 
+   else      
+   	 brew install "${tool}"  --build-from-source  "${toolOptions}"  > "/tmp/${tool}_install.log" 2>&1 &
+   	 pid="$!" 
+   fi
+
+   waitForPid "${pid}"                                                                              
+                                                                                                  
+   # Exit immediately if a command exits with a non-zero status                                     
+   set -e                                                                                           
+                                                                                                  
+   if [ "${rc}" != '0' ]; then                                                                      
+      echo "${TRED}Error : [${rc}] ${TNRM} brew update tools failed. Check the log for details"     
+      exit "${rc}"                                                                                  
+   fi                                                                                                   
+   echo "${TGRN} done ${TNRM}"  
+   
+   if [ "${doSoftLink}" = 'y' ]; then
+   	   softLinkBrewGTools "${BrewHome}/bin"
+   fi
+}
+
 #
 # If $BrewHome does not alread contain HomeBrew, download and install it.
 # Install the required HomeBrew packages.
@@ -496,40 +571,46 @@ function createSrcDirForCompilation()
 # sha2 is for sha512
 # bison on osx was too old (2.3) and gcc compiler did not like it
 # findutils is for xargs, needed by make modules in Raspbian
-# gmp is for isl
-# isl is for gcc
+# gmp is for gawk and isl  
+# readline is for gawk    
+# makedepend is for openssl
+# isl is for gcc  
+# cmake is for doxygen    
+# doxygen, meson-internal are for libmpclient   
+# ninja, sphinx-doc, gdbm, makedepend, openssl, sqlite, python, meson, libmpdclient are for mpc
 # mpc is for gcc
-# gcc for Raspbian to solve error PIE disabled. Absolute addressing (perhaps -mdynamic-no-pic)
-#
+# gcc for Raspbian to solve error PIE disabled. Absolute addressing (perhaps -mdynamic-no-pic)  
+# libunistring and libidn2   is required for wget
+#  openssl is for wget
 # for Raspbian tools - libelf ncurses gcc
 # for xconfig - QT   (takes hours). That would be up to you.
-# BrewTools="m4 coreutils findutils libtool pkg-config pcre grep ncurses gettext xz gnu-sed gawk binutils gmp isl mpc help2man autoconf automake bison bash wget sha2 libelf texinfo"
-BrewTools=( 'm4' 'coreutils' 'findutils' 'libtool' 'pkg-config' 'pcre' 'grep' 'ncurses' 'gettext' 'xz' 'gnu-sed' 'gawk' 'binutils' 'gmp' 'isl' 'mpc' 'help2man' 'autoconf' 'automake' 'bison' 'bash' 'wget' 'sha2' 'libelf' 'texinfo' )
 
 function buildBrewTools()
 {
    echo "${TBLU}Checking for HomeBrew tools ${TNRM}"
-   echo -n "${TBLU}Checking for our Brew completion flag ${TNRM}  ${BrewHome}.flagBrewComplete ... "
+   echo -n "${TBLU}Checking for our Brew completion flag ${TNRM} ${BrewHome}.flagBrewComplete ... "
    if [ -f "${BrewHome}/.flagBrewComplete" ]; then
       echo "${TGRN} found ${TNRM}"
       echo "${TNRM} Brew will not be updated ${TNRM}"
       return
    fi
-   echo "${TYEL} not found -OK ${TNRM}"
+   echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
 
    if [ ! -d "${BrewHome}" ]; then
-      echo "${TBLU}Installing HomeBrew tools ${TNRM} ..."
+      echo "${TBLU}Installing HomeBrew tool ${TNRM} ..."
       mkdir "${BrewHome}"
-      cd "${BrewHome}"
-      curl -Lsf 'http://github.com/mxcl/homebrew/tarball/master' | tar xz --strip 1 -C "${BrewHome}"
+            
+      git clone --depth=1 https://github.com/Homebrew/homebrew.git     "${BrewHome}"    
 
    else
       echo "${TBLU}   - Using existing Brew installation ${TNRM} in ${BrewHome}"
-   fi
+   fi      
+   
+   cd "${BrewHome}"
 
-   echo -n "${TBLU}Checking for Brew log path ${TNRM} ... "
+   echo -n "${TBLU}Checking for Brew logs directory ${TNRM} ... "
    if [ ! -d "${HOMEBREW_LOG_PATH}" ]; then
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo -n "${TBLU}Creating brew logs directory: ${TNRM} ${HOMEBREW_LOG_PATH} ... "
       mkdir "${HOMEBREW_LOG_PATH}"
       echo "${TGRN} done ${TNRM}"
@@ -540,7 +621,7 @@ function buildBrewTools()
 
    export PATH="${PathWithBrewTools}"
 
-   echo "${TBLU}Updating HomeBrew tools ${TNRM} ..."
+   echo "${TBLU}Updating HomeBrew tools ${TNRM}"
    echo "${TRED}Ignore the ERROR: could not link ${TNRM}"
    echo -n "${TRED}Ignore the message "
    echo "Please delete these paths and run brew update ${TNRM}"
@@ -563,20 +644,57 @@ function buildBrewTools()
       exit "${rc}"
    fi
    echo "${TGRN} done ${TNRM}"
-
-
-   # Do not Exit immediately if a command exits with a non-zero status.
-   set +e
-
-
-   echo "${TBLU}Installing brew tools. This may take a couple of hours ${TNRM} to ${BrewHome}"
-
-   # --default-names was deprecated
-   brew install "${BrewTools[@]}" --build-from-source --with-real-names
-   echo "${TGRN} Install of Brew Tools done ${TNRM}"
-
-   # Exit immediately if a command exits with a non-zero status
-   set -e
+  
+   installBrewTool 'm4'             ''                     'n' 'n'
+   installBrewTool 'coreutils'      ''                     'y' 'n'
+   installBrewTool 'findutils'      ''                     'y' 'n'
+   installBrewTool 'libtool'        ''                     'y' 'n'
+   installBrewTool 'pkg-config'     ''                     'n' 'n'
+   installBrewTool 'pcre'           ''                     'n' 'n'
+   installBrewTool 'grep'           '--with-default-names' 'y' 'n'
+   installBrewTool 'ncurses'        ''                     'n' 'n'
+   installBrewTool 'gettext'        ''                     'n' 'n'
+   echo -n "${TBLU}Adding brew symbolic links for gettext ${TNRM} "
+   brew link --force gettext                                       
+   echo "${TGRN} done ${TNRM}"                                     
+   installBrewTool 'xz'             ''                     'n' 'n'
+   installBrewTool 'gnu-sed'        '--with-default-names' 'n' 'n' 
+   installBrewTool 'gmp'            ''                     'n' 'n'  
+   installBrewTool 'mpfr'           ''                     'n' 'n'      
+   installBrewTool 'readline'       ''                     'n' 'n'
+   installBrewTool 'gawk'           ''                     'y' 'n'
+   installBrewTool 'binutils'       ''                     'y' 'n'  
+   installBrewTool 'isl'            ''                     'n' 'n'  
+   installBrewTool 'ninja'          ''                     'n' 'y'
+   installBrewTool 'sphinx-doc'     ''                     'n' 'y'
+   installBrewTool 'gdbm'           ''                     'n' 'n'
+   installBrewTool 'makedepend'     ''                     'n' 'n'
+   installBrewTool 'openssl'        ''                     'n' 'n'
+   installBrewTool 'sqlite'         ''                     'n' 'y'
+   installBrewTool 'python'         ''                     'n' 'y'
+   installBrewTool 'meson'          ''                     'n' 'y' 
+   installBrewTool 'cmake  '        ''                     'n' 'y'    
+   installBrewTool 'doxygen'        ''                     'n' 'y' 
+   installBrewTool 'meson-internal' ''                     'n' 'y'   
+   installBrewTool 'libmpdclient'   ''                     'n' 'y'  
+   installBrewTool 'mpc'            ''                     'n' 'y'
+   installBrewTool 'help2man'       ''                     'n' 'n'
+   installBrewTool 'autoconf'       ''                     'n' 'n'
+   installBrewTool 'automake'       ''                     'n' 'n'
+   installBrewTool 'bison'          ''                     'n' 'n'
+   installBrewTool 'bash'           ''                     'n' 'n'  
+   installBrewTool 'libunistring'   ''                     'n' 'n' 
+   installBrewTool 'libidn2'        ''                     'n' 'n'
+   installBrewTool 'wget'           ''                     'n' 'n'
+   installBrewTool 'sha2'           ''                     'y' 'n'
+   installBrewTool 'libelf'         ''                     'n' 'n'
+   installBrewTool 'texinfo'        ''                     'n' 'n'
+   installBrewTool 'gcc'            ''                     'n' 'y'                      
+                  
+   
+   echo -n "${TBLU}Adding brew symbolic links for gettext ${TNRM} "
+   brew link --force gettext
+   echo "${TGRN} done ${TNRM}"
 
    echo -n "${TBLU}Checking for ${TNRM} ${BrewHome}/bin/gsha512sum ${TNRM} ... "
    if [ ! -f "${BrewHome}/bin/gsha512sum" ]; then
@@ -586,7 +704,7 @@ function buildBrewTools()
    echo "${TGRN} found ${TNRM}"
    echo -n "${TBLU}Checking for ${TNRM} ${BrewHome}/bin/sha512sum ${TNRM} ... "
    if [ ! -f "${BrewHome}/bin/sha512sum" ]; then
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TNRM}Linking gsha512sum to sha512sum ${TNRM}"
       ln -s "${BrewHome}/bin/gsha512sum" "${BrewHome}/bin/sha512sum"
    else
@@ -602,7 +720,7 @@ function buildBrewTools()
 
    echo -n "${TBLU}Checking for ${TNRM} ${BrewHome}/bin/sha256sum ${TNRM} ... "
    if [ ! -f "${BrewHome}/bin/sha256sum" ]; then
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TNRM}Linking gsha256sum to sha256sum ${TNRM}"
       ln -s "${BrewHome}/bin/gsha256sum" "${BrewHome}/bin/sha256sum"
    else
@@ -611,7 +729,7 @@ function buildBrewTools()
 
    echo -n "${TBLU}Checking for ${TNRM} ${BrewHome}/bin/readlink ${TNRM} ... "
    if [ ! -f "${BrewHome}/bin/readlink" ]; then
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TNRM}Linking greadlink to readlink ${TNRM}"
       ln -s "${BrewHome}/bin/greadlink" "${BrewHome}/bin/readlink"
    else
@@ -620,7 +738,7 @@ function buildBrewTools()
 
    echo -n "${TBLU}Checking for ${TNRM} ${BrewHome}/bin/stat ${TNRM} ... "
    if [ ! -f "${BrewHome}/bin/stat" ]; then
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TNRM}Linking gstat to stat ${TNRM}"
       ln -s "${BrewHome}/bin/gstat" "${BrewHome}/bin/stat"
    else
@@ -630,13 +748,12 @@ function buildBrewTools()
 
    echo -n "${TBLU}Checking for ${TNRM} ${BrewHome}/bin/grep ${TNRM} ... "
    if [ ! -f "${BrewHome}/bin/grep" ]; then
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TNRM}Linking ggrep to grep ${TNRM}"
       ln -s "${BrewHome}/bin/ggrep" "${BrewHome}/bin/grep"
    else
       echo "${TGRN} found ${TNRM}"
    fi
-
 
    echo -n "${TBLU}Checking for ${TNRM} ${BrewHome}/opt/gcc/bin/gcc-8 ... "
    if [ -f "${BrewHome}/opt/gcc/bin/gcc-8" ]; then
@@ -660,7 +777,7 @@ function buildBrewTools()
          echo "${TGRN}links already in place ${TNRM}"
       fi
    else
-      echo "${TYEL}Not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
    fi
 
    echo -n "${TGRN}Creating ${TNRM} ${BrewHome}.flagBrewComplete ... "
@@ -674,7 +791,7 @@ function buildBrewTools()
 function buildBinutilsForHost()
 {
    local binutilsDir='binutils-2.30'
-   local binutilsFile='binutils-2.30.tar.xz'
+   local binutilsFile="${binutilsDir}.tar.xz"
    local binutilsURL="https://mirror.sergal.org/gnu/binutils/${binutilsFile}"
 
    echo -n "${TBLU}Checking for a working ld ${TNRM} ... "
@@ -682,19 +799,19 @@ function buildBinutilsForHost()
       echo "${TGRN} found ${TNRM}"
       return
    fi
-   echo "${TYEL} not found -OK ${TNRM}"
+   echo "${TYEL}Not found ${TGRN} -OK ${TNRM}"
 
    echo -n "${TBLU}Checking for a existing binutils source ${TNRM} ${COMPILING_LOCATION}/${binutilsDir} ... "
    if [ -d "${COMPILING_LOCATION}/${binutilsDir}" ]; then
       echo "${TGRN} found ${TNRM}"
    else
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
 
       echo -n "${TBLU}Checking for a saved ${binutilsFile} ${TNRM} ... "
       if [ -f "${SavedSourcesPath}/${binutilsFile}" ]; then
          echo "${TGRN} found ${TNRM}"
       else
-         echo "${TYEL} not found -OK ${TNRM}"
+         echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
          echo -n "${TBLU}Downloading ${binutilsFile} ${TNRM} ... "
          curl -Lsf "${binutilsURL}" -o "${SavedSourcesPath}/${binutilsFile}"
          echo "${TGRN} done ${TNRM}"
@@ -739,7 +856,7 @@ function buildBinutilsForHost()
    fi
    echo "${TGRN} done ${TNRM}"
 
-   echo "${TBLU}Compiling ${binutilsDir}  ${TNRM} ... Logging to /tmp/binutils_compile.log"
+   echo "${TBLU}Compiling ${binutilsDir} ${TNRM} ... Logging to /tmp/binutils_compile.log"
 
    # I dont know why this is true, but configure fails otherwise
    set +e
@@ -990,7 +1107,7 @@ function compileCrosstool()
    fi
    echo "${TGRN} done ${TNRM}"
 
-   echo "${TBLU}Installing  crosstool-ng ${TNRM}in ${CT_TOP_DIR_BASE}/ctng ... Logging to /tmp/ctng_install.log"
+   echo "${TBLU}Installing crosstool-ng ${TNRM} in ${CT_TOP_DIR_BASE}/ctng ... Logging to /tmp/ctng_install.log"
 
    # I dont know why this is true, but make fails otherwise
    set +e
@@ -1014,14 +1131,14 @@ function createCrossCompilerConfigFile()
 
    cd "${COMPILING_LOCATION}"
 
-   echo -n "${TBLU}Checking for ct-ng config file ${TNRM} ${COMPILING_LOCATION}/.config ... "
+   echo -n "${TBLU}Checking for target ct-ng config file ${TNRM} ${COMPILING_LOCATION}/.config ... "
    if [ -f  "${COMPILING_LOCATION}/.config" ]; then
       echo "${TGRN} found ${TNRM}"
       echo "${TYEL}Using existing .config file. ${TNRM}"
       echo "${TNRM}Remove it if you wish to start over."
       return
    else
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
    fi
 
 
@@ -1086,7 +1203,7 @@ function buildCTNG()
       echo "${TYEL}Remove it if you wish to have it rebuilt ${TNRM}"
       return
    else
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TNRM}Continuing with build"
    fi
 
@@ -1112,7 +1229,7 @@ function runCTNG()
       echo "${TNRM} To rebuild it, remove the old first"
       return
    else
-      echo -n "${TYEL} not found -OK ${TNRM}"
+      echo -n "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TNRM} Continuing with the build"
    fi
 
@@ -1154,7 +1271,7 @@ function buildLibtool()
 {
     cd "${COMPILING_LOCATION}/libelf"
     # ./configure --prefix=${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}
-    ./configure  -prefix="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}"  --host="${ToolchainName}"
+    ./configure  -prefix="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}" --host="${ToolchainName}"
     make
     make install
 }
@@ -1170,20 +1287,20 @@ function downloadAndBuildzlibForTarget()
       echo "${TGRN} found ${TNRM}"
       return
    fi
-   echo "${TYEL} not found -OK ${TNRM}"
+   echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
 
    echo -n "${TBLU}Checking for ${TNRM} ${COMPILING_LOCATION}/zlib-1.2.11 ... "
    if [ -d "${COMPILING_LOCATION}/zlib-1.2.11" ]; then
       echo "${TGRN} found ${TNRM}"
       echo "${TNRM} Using existing zlib source ${TNRM}"
    else
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       cd "${COMPILING_LOCATION}"
       echo -n "${TBLU}Checking for saved ${TNRM} ${zlibFile} ... "
       if [ -f "${SavedSourcesPath}/${zlibFile}" ]; then
          echo "${TGRN} found ${TNRM}"
       else
-         echo "${TYEL} not found -OK ${TNRM}"
+         echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
          echo -n "${TBLU}Downloading ${TNRM} ${zlibFile} ... "
          curl -Lsf "${zlibURL}" -o "${SavedSourcesPath}/${zlibFile}"
          echo "${TGRN} done ${TNRM}"
@@ -1546,7 +1663,7 @@ function downloadRaspbianKernel()
 
    echo -n "${TBLU}Checking for ${TNRM} ${RaspbianSrcDir} ... "
    if [ ! -d "${RaspbianSrcDir}" ]; then
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo -n "${TBLU}Creating ${TNRM}${RaspbianSrcDir} ... "
       mkdir "${RaspbianSrcDir}"
       echo "${TGRN} done ${TNRM}"
@@ -1564,7 +1681,7 @@ function downloadRaspbianKernel()
       cd "${COMPILING_LOCATION}/${RaspbianSrcDir}/linux"
   
    else
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo -n "${TBLU}Checking for saved ${TNRM} Raspbian.tar.xz ... "
       if [ -f "${SavedSourcesPath}/Raspbian.tar.xz" ]; then
          echo "${TGRN} found ${TNRM}"
@@ -1590,7 +1707,7 @@ function downloadRaspbianKernel()
          echo "${TGRN} done ${TNRM}"
      
       else
-         echo "${TYEL} not found -OK${TNRM}"
+         echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
          echo "${TBLU}Cloning Raspbian from git ${TNRM}"
          echo "${TBLU}This will take a while, but a copy will ${TNRM}"
          echo "${TBLU}be saved for the future. ${TNRM}"
@@ -1652,7 +1769,7 @@ function downloadRaspbianKernel()
 function downloadElfHeaderForOSX()
 {
    local ElfHeaderFile='/usr/local/include/elf.h'
-   echo "${TBLU}Checking for ${TNRM}${ElfHeaderFile}"
+   echo -n "${TBLU}Checking for ${TNRM} ${ElfHeaderFile} ... "
    if [ -f "${ElfHeaderFile}" ]; then
       echo "${TGRN} found ${TNRM}"
    else
@@ -1692,7 +1809,7 @@ function cleanupElfHeaderForOSX()
          sleep 4
       fi
    else
-      echo "${TGRN} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
 
    fi
 }
@@ -1716,7 +1833,7 @@ function configureRaspbianKernel()
       echo "${TNRM} make mproper & bcm2709_defconfig  ${TNRM} will not be done"
       echo "${TNRM} to protect previous changes ${TNRM}"
    else
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TBLU}Make bcm2709_defconfig ${TNRM} in ${PWD}"
       export CFLAGS='-Wl,-no_pie'
       export LDFLAGS='-Wl,-no_pie'
@@ -1834,7 +1951,19 @@ function installRaspbianKernelToBootVolume()
 }
 function compileFuseFromSource()
 {
+   # installing e2fsprogs says this may be needed for some programs
+   #  export LDFLAGS="-L/Volumes/ctBase/brew/opt/e2fsprogs/lib"
+   # export CPPFLAGS="-I/Volumes/ctBase/brew/opt/e2fsprogs/include"
+   
+   # osxfuse Readme says:
+   #  git clone --recursive -b support/osxfuse-3 git://github.com/osxfuse/osxfuse.git osxfuse
+   #  ./build.sh -t distribution
+   # The resulting distribution package can be found in `/tmp/osxfuse/distribution`.
+
+
+   
    # Version built was fuse-ext2 0.0.9 29
+   # Version via brew was 0.0.9 29
    # git command for fuse from source
    git clone --depth=1 https://github.com/alperakcan/fuse-ext2.git
 
@@ -2203,7 +2332,7 @@ function downloadRaspbianStretch()
       echo "${TGRN} found ${TNRM}"
 
    else
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
   
       echo "${TBLU}Fetching ${RaspbianStretchFile} ${TNRM}"
      
@@ -2247,7 +2376,7 @@ function unPackDebFile()
       echo "${TNRM}Package ${pkg} already installed"
       return
    fi
-   echo "${TYEL} not found ${TNRM} - OK"
+   echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
 
    cd "${SavedSourcesPath}"
 
@@ -2360,17 +2489,17 @@ function downloadLinuxCNC()
       echo "${TNRM} Remove it to start over"
       return
    fi
-   echo "${TGRN} not found -OK ${TNRM}"
+   echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
  
    echo -n "${TBLU}Checking for existing LinuxCNC src ${TNRM} ${LinuxCNCSrcDir} ... "
    if [ -d "${COMPILING_LOCATION}/${LinuxCNCSrcDir}" ]; then
       echo "${TGRN} found ${TNRM} Using it instead"
    else
-      echo "${TGRN} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
   
       echo -n "${TBLU}Checking for saved LinuxCNC src ${TNRM} ${LinuxCNCSrcDir}.tar.xz ... "
       if [ -f "${SavedSourcesPath}/${LinuxCNCSrcDir}.tar.xz" ]; then
-         echo "${TGRN} found -OK ${TNRM}"
+         echo "${TGRN} found ${TNRM}"
  
          echo -n "${TBLU}Extracting saved LinuxCNC src ${TNRM} to ${SavedSourcesPath}/${LinuxCNCSrcDir} ... "  
          tar -xf "${SavedSourcesPath}/${LinuxCNCSrcDir}.tar.xz" \
@@ -2378,7 +2507,7 @@ function downloadLinuxCNC()
          
          echo "${TGRN} done ${TNRM}"
       else
-         echo "${TGRN} not found -OK ${TNRM}"
+         echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
      
          echo -n "${TBLU}Creating ${LinuxCNCSrcDir} ${TNRM} in ${COMPILING_LOCATION} ... "
          mkdir "${COMPILING_LOCATION}/${LinuxCNCSrcDir}"
@@ -2415,7 +2544,7 @@ function configureLinuxCNC()
       echo "${TNRM} make mproper & bcm2709_defconfig  ${TNRM} will not be done"
       echo "${TNRM} to protect previous changes ${TNRM}"
    else
-      echo "${TYEL} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
       echo "${TBLU}Make bcm2709_defconfig ${TNRM} in ${PWD}"
       export CFLAGS='-Wl,-no_pie'
       export LDFLAGS='-Wl,-no_pie'
@@ -2451,17 +2580,17 @@ function downloadPyCNC()
       echo "${TNRM} Remove it to start over"
       return
    fi
-   echo "${TGRN} not found -OK ${TNRM}"
+   echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
  
    echo -n "${TBLU}Checking for existing PyCNC src ${TNRM} ${PyCNCSrcDir} ... "
    if [ -d "${COMPILING_LOCATION}/${PyCNCSrcDir}" ]; then
       echo "${TGRN} found ${TNRM} Using it instead"
    else
-      echo "${TGRN} not found -OK ${TNRM}"
+      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
   
       echo -n "${TBLU}Checking for saved PyCNC src ${TNRM} ${PyCNCSrcDir}.tar.xz ... "
       if [ -f "${SavedSourcesPath}/${PyCNCSrcDir}.tar.xz" ]; then
-         echo "${TGRN} found -OK ${TNRM}"
+         echo "${TGRN} found ${TNRM}"
  
          echo -n "${TBLU}Extracting saved PyCNC src ${TNRM} to ${SavedSourcesPath}/${PyCNCSrcDir} ... "  
          tar -xf "${SavedSourcesPath}/${PyCNCSrcDir}.tar.xz" \
@@ -2469,7 +2598,7 @@ function downloadPyCNC()
          
          echo "${TGRN} done ${TNRM}"
       else
-         echo "${TGRN} not found -OK ${TNRM}"
+         echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
      
          echo -n "${TBLU}Creating ${PyCNCSrcDir} ${TNRM} in ${COMPILING_LOCATION} ... "
          mkdir "${COMPILING_LOCATION}/${PyCNCSrcDir}"
@@ -2518,7 +2647,8 @@ function updateVariablesForChangedOptions()
    export HOMEBREW_CACHE="${SavedSourcesPath}"
    export HOMEBREW_LOG_PATH="${BrewHome}/brew_logs"
 
-   PathWithBrewTools="${BrewHome}/bin:${BrewHome}/opt/m4/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:${BrewHome}/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}"
+ PathWithBrewTools="${BrewHome}/bin:${BrewHome}/opt/m4/bin:${BrewHome}/opt/ncurses/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/meson-internal/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:${BrewHome}/opt/sphinx-doc/bin:${BrewHome}/opt/sqlite/bin:${BrewHome}/opt/openssl/bin:${BrewHome}/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}"
+   #PathWithBrewTools="${BrewHome}/bin:${BrewHome}/opt/m4/bin:${BrewHome}/opt/gettext/bin:${BrewHome}/opt/bison/bin:${BrewHome}/opt/libtool/bin:${BrewHome}/opt/texinfo/bin:${BrewHome}/opt/gcc/bin:${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin:/Volumes/${VolumeBase}/ctng/bin:${OriginalPath}"
 
    PathWithCrossCompiler="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${PathWithBrewTools}"
 
@@ -2535,7 +2665,7 @@ function explainExclusion()
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
-OPTSTRING='h?P?c:V:O:f:btT:i:S:a:'
+OPTSTRING='h?P?c:V:O:f:btT:i:S:a:g'
 
 # Getopt #1 - To enforce order
 while getopts "${OPTSTRING}" opt; do
@@ -2741,7 +2871,13 @@ while getopts "${OPTSTRING}" opt; do
              AddPyCNCOpt='y'           
           fi
           ;;
-          #####################
+          ##################### 
+       g)                        
+          BuildGCCwithBrewOpt='y'            
+          ;;                     
+          #####################  
+          
+          
       \?)
           exit -1
           ;;
