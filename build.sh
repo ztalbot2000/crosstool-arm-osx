@@ -151,6 +151,9 @@ COMPILING_LOCATION="${CT_TOP_DIR}/src"
 # This will save checking for them each time
 CmdOptionString=''
 
+# Before we start, remove duplicates from PATH
+PATH=`awk -F: '{for (i=1;i<=NF;i++) { if ( !x[$i]++ ) printf("%s:",$i); }}' <<< "$PATH"`
+
 # Adding to PATH can be exponentially explosive, so just keep three
 OriginalPath="${PATH}"
 PathWithBrewTools=''
@@ -173,6 +176,10 @@ InstallRaspbianOpt='n'
 InstallKernelOpt='n'
 AddLinuxCNCOpt='n'
 AddPyCNCOpt='n'    
+FoundParagonExtfsTools='n'
+FoundBrewExt2Tools='n'
+FoundMacportsExt2Tools='n'
+ThisToolAddedExt2Tools='n'
 BuildGCCwithBrewOpt='n'
 
 # Fun colour & cursor stuff
@@ -1959,8 +1966,18 @@ function compileFuseFromSource()
    #  git clone --recursive -b support/osxfuse-3 git://github.com/osxfuse/osxfuse.git osxfuse
    #  ./build.sh -t distribution
    # The resulting distribution package can be found in `/tmp/osxfuse/distribution`.
+   # Running
+   #   ./build.sh -t distribution -v 999
+   # Results in: Library not loaded: @rpath/libclang.dylib
+   # fixed by:
+   # cd /Applications/Xcode.app/Contents/Developer/Toolchains
+   # sudo ln -s XcodeDefault.xctoolchain OSX10.13.xctoolchain
 
-
+   # Macports fetches osxfuse version osxfuse-3.8.2.dmg 
+   # Macports fetches osxfuse-3.8.0.dmg 
+   # Macports has ext2fuse version 0.8.1.2
+   # It says disk has unsupported features and seg faults
+   # Macports has ext4fuse version ext4fuse-0.1.3.0
    
    # Version built was fuse-ext2 0.0.9 29
    # Version via brew was 0.0.9 29
@@ -1972,11 +1989,18 @@ function compileFuseFromSource()
 
 
 }
-function checkExt2InstallForOSX()
+function checkOurExt2InstallForOSX()
 {
-   # Interesting note.  I believe brew installed osxfuse in
+   if [ ! -f "${BrewHome}/ThisToolAddedExt2Tools" ]; then
+      return
+   fi
+
+   #  We can onlycheck our install
+   ThisToolAddedExt2Tools='y'
+
+   # Interesting note.  Brew installed osxfuse in
    # /usr/local/include/osxfuse and /usr/local/lib
-   # anyway.  Must check this
+   # anyway.  
 
    echo -n "${TBLU}Checking for Ext2 tools ${TNRM} ... "
    if [ ! -d "${BrewHome}/Caskroom/osxfuse" ] &&
@@ -2032,10 +2056,54 @@ function checkExt2InstallForOSX()
 
 }
 
+# notes of macports install of ext4fuse
+# osxfuse has the following notes:
+#     When upgrading, unmount all FUSE filesystems and then unload the kernel
+#     extension.
+#     Unloading can be done via: sudo kextunload -b
+#     com.github.osxfuse.filesystems.osxfuse
 
 function updateBrewForEXT2()
 {
    export PATH="${PathWithBrewTools}"
+
+   # We first need to see if any ext2 tools are intalled
+   # so we do not clobber them as fuse-ext2 is installed
+   # in /usr/local/bin no matter what we do
+
+   if [ ! -f "${BrewHome}/ThisToolAddedExt2Tools" ]; then
+
+      # Check for already installed Paragon extfs
+      echo -n "${TBLU}Checking for existing Paragon Extfs ${TNRM} ... "
+      if [ -d '/Library/PreferencePanes/ParagonExtFS.prefPane' ] &&
+         [ -d '/Library/Filesystems/ufsd_ExtFS.fs' ] &&
+         [ -d 'Applications/extFS for Mac.app' ] &&
+         [ -f '/usr/local/sbin/mount_fuse-ext2' ]; then
+          echo "${TGRN} found ${TNRM}"
+          FoundParagonExtfsTools='y'
+          return
+      fi
+      echo "${TYEL} not found ${TGRN} OK ${TNRM}"
+
+      echo -n "${TBLU}Checking for existing fuse-ext2 ${TNRM} in /usr/local/homebrew/bin ... "
+      if [ -x '/usr/local/homebrew/bin/fuse-ext2' ]; then 
+         FoundBrewExt2Tools='y'
+         echo "${TGRN} found ${TNRM}"
+         return
+      fi
+      echo "${TYEL} not found ${TGRN} OK ${TNRM}"
+
+      # Check for already installed MacPorts ext2fuse
+      echo -n "${TBLU}Checking for MacPorts ext2fuse ${TNRM} in /opt/local ... "
+      if [ -x '/opt/local/bin/ext2fuse' ]; then
+         echo "${TGRN} found ${TNRM}"
+         echo "${TRED}Found MacPorts /opt/local/bin/ext2fuse"
+         echo "${TRED}Beware my MacPorts ext2fuse version 0.8.2 fails ${TNRM}"
+         FoundMacportsExt2Tools='y'
+         return
+      fi
+      echo "${TYEL} not found ${TGRN} OK ${TNRM}"
+   fi
 
    if [ ! -d "${BrewHome}/Caskroom/osxfuse" ] &&
       [ ! -d "${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin/mke2fs" ]; then
@@ -2046,22 +2114,24 @@ function updateBrewForEXT2()
       if [ ! -d "${BrewHome}/Caskroom/osxfuse" ]; then
          echo "${TBLU}Installing brew cask osxfuse ${TNRM}"
          echo "${TMAG}*** osxfuse will need sudo *** ${TNRM}"
-         brew cask install osxfuse && true
+         ${BrewHome}/bin/brew cask install osxfuse && true
       fi
 
       if [ ! -d "${BrewHome}/Cellar/e2fsprogs/1.44.3/sbin/mke2fs" ]; then
-         echo "${TBLU}Installing brew ext4fuse ${TNRM}"
+         echo "${TBLU}Installing brew fuse-ext2 ${TNRM}"
          # ext2fuse version in brew is 0.8.1
          # this also downloads e2fsprogs 1.44.3
-         # ${BrewHome}/bin/brew install ext4fuse && true
+         ${BrewHome}/bin/brew install fuse-ext2 && true
      
          # ext2fuse --head version is 0.0.9 29
          # this also downloads e2fsprogs 1.44.3
-         brew install --HEAD 'https://raw.githubusercontent.com/yalp/homebrew-core/fuse-ext2/Formula/fuse-ext2.rb' && true
+         # brew install --HEAD 'https://raw.githubusercontent.com/yalp/homebrew-core/fuse-ext2/Formula/fuse-ext2.rb' && true
       fi
 
       # Exit immediately if a command exits with a non-zero status
       set -e
+
+      touch "${BrewHome}/ThisToolAddedExt2Tools"
 
       if [ -f  '/Library/Filesystems/fuse-ext2.fs/fuse-ext2.util' ] &&
          [ -f '/Library/PreferencePanes/fuse-ext2.prefPane/Contents/MacOS/fuse-ext2' ]
@@ -2074,6 +2144,9 @@ function updateBrewForEXT2()
 
          echo "${TBLU}After the install and reboot ${TNRM}"
          echo "${TBLU}Execute again:${TNRM} ./build.sh ${CmdOptionString} -i"
+         echo "You will now be asked for the sudo password for the reboot command:"
+         echo "sudo -k shutdown -r now"
+         sudo -k shutdown -r now
          exit 0
       fi
    fi
@@ -2081,7 +2154,8 @@ function updateBrewForEXT2()
    # Exit immediately if a command exits with a non-zero status
    set -e
 
-   checkExt2InstallForOSX
+
+   checkOurExt2InstallForOSX
 
 }
 
@@ -2227,11 +2301,11 @@ function mountRaspbianBootPartitiion()
 
 function mountRaspbianRootPartitiion()
 {
-   local RW='n'
+   local RW='ro'
    RW="$1"
 
    PATH="${PathWithBrewTools}"
-   echo "${TBLU}Mounting Raspbian root Partitiions with fuse-ext ${TNRM}"
+
 
    echo -n "${TBLU}Checking /Volumes/root already mounted${TNRM} ... "
    if [ -d '/Volumes/root/bin' ]; then
@@ -2241,15 +2315,63 @@ function mountRaspbianRootPartitiion()
    echo "${TGRN} not mounted ${TNRM}"
 
    getUSBFlashDeviceForRoot
+   TargetUSBDevice="${rc}"
 
-   if [ "${RW}" = 'y' ]; then
-      echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (RW+) ${TNRM} as /Volumes/root ... "
-      sudo fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o rw+
+   if [ "${FoundParagonExtfsTools}" = 'y' ]; then
+
+      echo "${TBLU}Mounting Raspbian root Partitiions with Paragon fuseFS ${TNRM}"
+
+      if [ "${RW}" = 'rw' ]; then
+         echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (RW+) ${TNRM} as /Volumes/root ... "
+         sudo fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o allow_other -o rw+
+      else
+         echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (Read Only) ${TNRM} as /Volumes/root ... "
+         sudo fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o allow_other
+      fi
+      echo "${TGRN} done ${TNRM}"
+
+   elif [ "${FoundMacportsExt2Tools}" = 'y' ]; then
+
+      echo "${TBLU}Mounting Raspbian root Partitiions with MacPorts ext2fuse ${TNRM}"
+
+      if [ "${RW}" = 'rw' ]; then
+         echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (RW+) ${TNRM} as /Volumes/root ... "
+         sudo /opt/local/bin/ext2fuse "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o allow_other -o rw+
+      else
+         echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (Read Only) ${TNRM} as /Volumes/root ... "
+         sudo /opt/local/bin/ext2fuse "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o allow_other
+      fi
+      echo "${TGRN} done ${TNRM}"
+
+   elif [ "$FoundBrewExt2Tools}" = 'y' ]; then
+
+      echo "${TBLU}Mounting Raspbian root Partitiions with existing HomeBrew fuse-ext2 ${TNRM}"
+
+      if [ "${RW}" = 'rw' ]; then
+         echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (RW+) ${TNRM} as /Volumes/root ... "
+         sudo /usr/local/homebrew/bin/fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o allow_other -o rw+
+      else
+         echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (Read Only) ${TNRM} as /Volumes/root ... "
+         sudo /usr/local/homebrew/bin/fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o allow_other
+      fi
+      echo "${TGRN} done ${TNRM}"
+
    else
-      echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (Read Only) ${TNRM} as /Volumes/root ... "
-      sudo fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root'
+
+      echo "${TBLU}Mounting Raspbian root Partitiions with this brew's fuse-ext2 ${TNRM}"
+
+      if [ "${RW}" = 'rw' ]; then
+         echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (RW+) ${TNRM} as /Volumes/root ... "
+         sudo %{HOMEBREW_PREFIX}/bin/fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o allow_other -o rw+
+      else
+         echo -n "${TBLU}Mounting /dev/disk${TargetUSBDevice}s2 (Read Only) ${TNRM} as /Volumes/root ... "
+         sudo %{HOMEBREW_PREFIX}/bin/fuse-ext2 "/dev/disk${TargetUSBDevice}s2" '/Volumes/root' -o allow_other
+      fi
+      echo "${TGRN} done ${TNRM}"
+
+   
    fi
-   echo "${TGRN} done ${TNRM}"
+
 
    echo -n "${TBLU}Checking for /Volumes/root/bin ${TNRM} ... "  
    if [ ! -d '/Volumes/root/bin' ]; then
@@ -2538,33 +2660,8 @@ function configureLinuxCNC()
 
    export CROSS_PREFIX="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin/${ToolchainName}-"
 
-   echo -n "${TBLU}Checkingo for an existing linux/.config file ${TNRM} ... "
-   if [ -f '.config' ]; then
-      echo "${TYEL} found ${TNRM}"
-      echo "${TNRM} make mproper & bcm2709_defconfig  ${TNRM} will not be done"
-      echo "${TNRM} to protect previous changes ${TNRM}"
-   else
-      echo "${TYEL} not found ${TGRN} -OK ${TNRM}"
-      echo "${TBLU}Make bcm2709_defconfig ${TNRM} in ${PWD}"
-      export CFLAGS='-Wl,-no_pie'
-      export LDFLAGS='-Wl,-no_pie'
-  
-
-      # Since there is no config file then add the cross compiler
-      # echo "CONFIG_CROSS_COMPILE=\"${ToolchainName}-\"\n" >> '.config'
-      printf 'CONFIG_CROSS_COMPILE="%s-"\n' "${ToolchainName}" >> '.config'
-
-   fi
-
-
-
-   # KBUILD_CFLAGS="-I${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/include" \
-   # KBUILD_LDLAGS="-L${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/sysroot/usr/lib" \
-   # ARCH=arm \
-   #   make  -j4 CROSS_COMPILE="${ToolchainName}-" \
-   #     CC="${ToolchainName}-gcc" \
-   #     --include-dir="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/${ToolchainName}/include" \
-   #     zImage
+   cd linuxcnc-dev/debian
+  ./configure uspace
 
    exit -1
 
@@ -2621,6 +2718,17 @@ function downloadPyCNC()
 
 }
 
+function downloadPYPForPyCNC()
+{
+    wget https://bitbucket.org/pypy/pypy/downloads/pypy2-v5.7.1-linux-armhf-raspbian.tar.bz2
+    sudo mkdir /Volumes/root/opt/pypy
+    sudo tar xvf pypy2-v5.7.1-linux-armhf-raspbian.tar.bz2 --directory /Volumes/root/opt/pypy/ --strip-components=1
+    cd /Volumes/root/opt/pypy/bin
+    sudo ln -s  pypy  ../../../usr/local/bin/pypy
+}
+
+
+
 function updateVariablesForChangedOptions()
 {
    # Base gets changed based on Volume name given
@@ -2652,6 +2760,11 @@ function updateVariablesForChangedOptions()
 
    PathWithCrossCompiler="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${PathWithBrewTools}"
 
+   if [ -f "${BrewHome}/ThisToolAddedExt2Tools" }; then
+      ThisToolAddedExt2Tools='y'
+   fi
+
+
 }
 function explainExclusion()
 {
@@ -2661,7 +2774,6 @@ function explainExclusion()
    echo "${TRED} If you try to do it anyway afterwards, the extfs mount"
    echo "${TRED} will fail. ${TNRM}"
 }
-
 
 # Define this once and you save yourself some trouble
 # Omit the : for the b as we will check for optional option
@@ -2891,6 +3003,8 @@ while getopts "${OPTSTRING}" opt; do
 done
 
 
+# Even if nothing was specfied, some variables still get set as in the case of starting again
+updateVariablesForChangedOptions
 
 if [ "${TestHostCompilerOpt}" = 'y' ]; then
    testHostCompiler
@@ -2955,7 +3069,7 @@ if [ "${InstallRaspbianOpt}" = 'y' ] ||
 then
    # updateBrewForEXT2
   
-   getUSBFlashDeviceForInstallation
+   getUSBFlashDeviceForRoot
    TargetUSBDevice="${rc}"
      
    echo "${TGRN}Using flash device: ${TNRM} /dev/disk${TargetUSBDevice}"
@@ -2979,7 +3093,7 @@ if [ "${AddLinuxCNCOpt}" = 'y' ]; then
 
    updateBrewForEXT2
 
-   mountRaspbianRootPartitiion  'n'
+   mountRaspbianRootPartitiion  'rw'
 
    addMissingRaspbianPackages
 
