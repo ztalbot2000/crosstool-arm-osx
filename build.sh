@@ -1069,7 +1069,7 @@ function compileCrosstool()
    # It is strange that gettext is put in opt
    gettextDir="${BrewHome}/opt/gettext"
 
-   echo "${TBLU} Executing configure for crosstool-ng ${TNRM} --with-libintl-prefix"
+   echo "${TBLU} Executing configure for crosstool-ng ${TNRM} --with-libintl-prefix Logging to /tmp/ct-ng_config.log"
 
    # export LDFLAGS
    # export CPPFLAGS
@@ -1079,8 +1079,8 @@ function compileCrosstool()
 
    # --with-libintl-prefix should have been enough, but it seems LDFLAGS and
    # CPPFLAGS is required too to fix libintl.h not found
-   LDFLAGS="  -L${BrewHome}/opt/gettext/lib -lintl " \
-   CPPFLAGS=" -I${BrewHome}/opt/gettext/include"     \
+   LDFLAGS=" -L${BrewHome}/opt/gettext/lib -lintl -L${BrewHome}/opt/ncurses/lib " \
+   CPPFLAGS=" -I${BrewHome}/opt/gettext/include -I${BrewHome}/opt/ncurses/include " \
    ./configure --with-libintl-prefix=${gettextDir}   \
                --prefix="${CT_TOP_DIR_BASE}/ctng"    \
    > /tmp/ct-ng_config.log 2>&1 &
@@ -2722,9 +2722,9 @@ function downloadPYPForPyCNC()
 {
     wget https://bitbucket.org/pypy/pypy/downloads/pypy2-v5.7.1-linux-armhf-raspbian.tar.bz2
     sudo mkdir /Volumes/root/opt/pypy
-    sudo tar xvf pypy2-v5.7.1-linux-armhf-raspbian.tar.bz2 --directory /Volumes/root/opt/pypy/ --strip-components=1
+    tar xvf pypy2-v5.7.1-linux-armhf-raspbian.tar.bz2 --directory /Volumes/root/opt/pypy/ --strip-components=1
     cd /Volumes/root/opt/pypy/bin
-    sudo ln -s  pypy  ../../../usr/local/bin/pypy
+    ln -s  pypy  ../../../usr/local/bin/pypy
 }
 
 
@@ -2760,7 +2760,7 @@ function updateVariablesForChangedOptions()
 
    PathWithCrossCompiler="${CT_TOP_DIR_BASE}/${OutputDir}/${ToolchainName}/bin:${PathWithBrewTools}"
 
-   if [ -f "${BrewHome}/ThisToolAddedExt2Tools" }; then
+   if [ -f "${BrewHome}/ThisToolAddedExt2Tools" ]; then
       ThisToolAddedExt2Tools='y'
    fi
 
