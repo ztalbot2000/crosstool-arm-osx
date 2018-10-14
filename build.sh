@@ -558,6 +558,7 @@ function installBrewTool()
    echo "${TGRN} done ${TNRM}"  
    
    if [ "${doSoftLink}" = 'y' ]; then
+           return
    	   softLinkBrewGTools "${BrewHome}/bin"
    fi
 }
